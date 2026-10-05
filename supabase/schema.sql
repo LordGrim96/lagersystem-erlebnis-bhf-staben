@@ -7,7 +7,8 @@ create table if not exists public.artikel (
   name      text not null check (length(trim(name)) > 0),
   sorte     text not null default '',
   ort       text not null default '',
-  einheit   text not null default 'Stück',
+  einheit   text not null default 'Flasche',   -- gezählt wird in Einzelstücken
+  pro_kiste numeric not null default 0 check (pro_kiste >= 0),  -- nur Eingabehilfe für Lieferungen
   mindest   numeric not null default 0 check (mindest >= 0),
   bestand   numeric not null default 0 check (bestand >= 0),   -- im Lager
   mindest_waggon numeric not null default 0 check (mindest_waggon >= 0),
@@ -20,6 +21,7 @@ create table if not exists public.artikel (
 alter table public.artikel add column if not exists sorte text not null default '';
 alter table public.artikel add column if not exists mindest_waggon numeric not null default 0 check (mindest_waggon >= 0);
 alter table public.artikel add column if not exists waggon numeric not null default 0 check (waggon >= 0);
+alter table public.artikel add column if not exists pro_kiste numeric not null default 0 check (pro_kiste >= 0);
 
 create table if not exists public.buchungen (
   id              uuid primary key default gen_random_uuid(),
@@ -49,7 +51,7 @@ alter table public.buchungen enable row level security;
 
 revoke all on public.artikel, public.buchungen from anon, authenticated;
 grant select, insert, delete on public.artikel to authenticated;
-grant update (name, sorte, ort, einheit, mindest, mindest_waggon, notiz) on public.artikel to authenticated;
+grant update (name, sorte, ort, einheit, pro_kiste, mindest, mindest_waggon, notiz) on public.artikel to authenticated;
 grant select on public.buchungen to authenticated;
 
 drop policy if exists "artikel lesen" on public.artikel;

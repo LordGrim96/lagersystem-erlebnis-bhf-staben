@@ -152,27 +152,32 @@
           </select>
         </label>
       </div>
-      <label>Einheit
-        <input name="einheit" maxlength="20" list="einheitenListe" placeholder="Kiste">
-      </label>
       <div class="grid2">
-        <label>Mindestbestand Lager
+        <label>Gezählt wird in
+          <input name="einheit" maxlength="20" list="einheitenListe" placeholder="Flasche">
+        </label>
+        <label>Stück pro Kiste (optional)
+          <input name="proKiste" type="number" min="0" step="1" placeholder="z. B. 24">
+        </label>
+      </div>
+      <div class="grid2">
+        <label>Mindestens im Lager (Stück)
           <input name="mindest" type="number" min="0" step="any" value="0">
         </label>
-        <label>Mindestbestand Waggon
+        <label>Mindestens im Waggon (Stück)
           <input name="mindestWaggon" type="number" min="0" step="any" value="0">
         </label>
       </div>
       <div class="grid2 only-new">
-        <label>Jetzt im Lager
+        <label>Jetzt im Lager (Stück)
           <input name="anfang" type="number" min="0" step="any" value="0">
         </label>
-        <label>Jetzt im Waggon
+        <label>Jetzt im Waggon (Stück)
           <input name="anfangWaggon" type="number" min="0" step="any" value="0">
         </label>
       </div>
       <label>Notiz
-        <input name="notiz" maxlength="200" placeholder="z. B. Lieferant, Flaschen pro Kiste">
+        <input name="notiz" maxlength="200" placeholder="z. B. Lieferant, Flaschengröße">
       </label>
       <p id="artikelFehler" class="error" hidden></p>
       <menu>
@@ -193,9 +198,15 @@
         <label><input type="radio" name="typ" value="aus"><span>Lager → Waggon<small>auffüllen</small></span></label>
         <label><input type="radio" name="typ" value="verkauf"><span>− Verkauft<small>aus dem Waggon</small></span></label>
       </div>
+      <div class="eingabe-wahl" id="eingabeWahl" hidden>
+        <span>Eingabe in</span>
+        <label><input type="radio" name="eingabe" value="stueck" checked> <span id="eingabeStueck">Flaschen</span></label>
+        <label><input type="radio" name="eingabe" value="kiste"> <span id="eingabeKiste">Kisten</span></label>
+      </div>
       <div class="grid2">
         <label>Menge *
           <input name="menge" type="number" min="0.001" step="any" required>
+          <span id="umrechnung" class="umrechnung" hidden></span>
         </label>
         <label>Person
           <input name="person" maxlength="60" list="personenListe">
@@ -231,7 +242,7 @@
   </dialog>
 
   <datalist id="einheitenListe">
-    <option value="Kiste"><option value="Flasche"><option value="Fass"><option value="Dose"><option value="Karton"><option value="Liter">
+    <option value="Flasche"><option value="Dose"><option value="Glas"><option value="Stück">
   </datalist>
   <datalist id="personenListe"></datalist>
 

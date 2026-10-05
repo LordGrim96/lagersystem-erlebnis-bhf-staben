@@ -6,7 +6,8 @@ Läuft im Browser auf PC, Tablet und Handy – ohne Installation.
 
 ## Funktionen
 
-- **Getränke** anlegen und bearbeiten (Bezeichnung, Sorte, Einheit wie Kiste/Flasche/Fass, Mindestbestand, Notiz)
+- **Getränke** anlegen und bearbeiten (Bezeichnung, Sorte, Einzelstück wie Flasche/Dose, Stück pro Kiste, Mindestbestände, Notiz)
+- **Gezählt wird in Einzelstücken.** Kisten sind nur Eingabehilfe bei Lieferungen (2 Kisten à 24 = 48 Flaschen) und Orientierung im Lager
 - **Lager und Waggon getrennt**: Umschalter zwischen *Übersicht* (beide Bestände + Summe), *Lager* und *Waggon*
   - **Lieferung** → ins Lager, **Lager → Waggon** beim Auffüllen, **Verkauft** → aus dem Waggon
   - Verkauf auch per Zählen: eingeben, was noch im Waggon steht – die verkaufte Menge wird ausgerechnet

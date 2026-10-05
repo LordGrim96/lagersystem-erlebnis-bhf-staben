@@ -17,9 +17,21 @@ const byName = (x, y) => x.name.localeCompare(y.name, 'de');
 let state = { artikel: [], buchungen: [] };
 const findArtikel = (id) => state.artikel.find((a) => a.id === id);
 
-// Menge mit Einheit, im Plural wo nötig: "1 Kiste", "3 Kisten"
-const PLURAL = { Kiste: 'Kisten', Flasche: 'Flaschen', Dose: 'Dosen', Fass: 'Fässer', Karton: 'Kartons' };
-const mengeText = (n, einheit = '') => `${fmt(n)} ${Number(n) === 1 ? einheit : PLURAL[einheit] ?? einheit}`.trim();
+// Gezählt wird in Einzelstücken (Flasche, Dose …). Kisten dienen nur als Eingabehilfe
+// bei Lieferungen und als Orientierung im Lager ("52 Flaschen (2 Kisten + 4)").
+const PLURAL = { Kiste: 'Kisten', Flasche: 'Flaschen', Dose: 'Dosen', Glas: 'Gläser', Fass: 'Fässer', Karton: 'Kartons' };
+const plural = (n, einheit) => (Number(n) === 1 ? einheit : PLURAL[einheit] ?? einheit);
+const mengeText = (n, einheit = '') => `${fmt(n)} ${plural(n, einheit)}`.trim();
+function kistenText(n, proKiste) {
+  if (!(proKiste > 0) || n < proKiste) return '';
+  const kisten = Math.floor(n / proKiste);
+  const rest = round(n - kisten * proKiste);
+  return `${kisten} ${plural(kisten, 'Kiste')}${rest ? ` + ${fmt(rest)}` : ''}`;
+}
+const lagerText = (a) => {
+  const k = kistenText(a.bestand, a.proKiste);
+  return mengeText(a.bestand, a.einheit) + (k ? ` (${k})` : '');
+};
 
 // Status: "krit" = Mindestbestand erreicht/unterschritten, "warn" = knapp darüber
 function stufe(menge, mindest) {
@@ -46,17 +58,17 @@ const WIRKUNG = {
 const SORTEN = ['Alkoholfrei', 'Bier & Radler', 'Wein & Prosecco', 'Spirituosen', ''];
 const sorteName = (s) => s || 'Sonstiges';
 
-// Getränkeliste des Erlebnisbahnhofs: [Name, Sorte, Einheit]
+// Getränkeliste des Erlebnisbahnhofs: [Name, Sorte, Einzelstück]
 const GETRAENKELISTE = [
-  ['Cola', 'Alkoholfrei', 'Kiste'],
-  ['Calypso', 'Alkoholfrei', 'Kiste'],
-  ['Eistee', 'Alkoholfrei', 'Kiste'],
-  ['Jambo', 'Alkoholfrei', 'Kiste'],
+  ['Cola', 'Alkoholfrei', 'Flasche'],
+  ['Calypso', 'Alkoholfrei', 'Flasche'],
+  ['Eistee', 'Alkoholfrei', 'Flasche'],
+  ['Jambo', 'Alkoholfrei', 'Flasche'],
   ['Holundersirup', 'Alkoholfrei', 'Flasche'],
-  ['Hacker-Pschorr Radler', 'Bier & Radler', 'Kiste'],
-  ['Bier', 'Bier & Radler', 'Kiste'],
-  ['Alkoholfreies Bier', 'Bier & Radler', 'Kiste'],
-  ['Forst', 'Bier & Radler', 'Kiste'],
+  ['Hacker-Pschorr Radler', 'Bier & Radler', 'Flasche'],
+  ['Bier', 'Bier & Radler', 'Flasche'],
+  ['Alkoholfreies Bier', 'Bier & Radler', 'Flasche'],
+  ['Forst', 'Bier & Radler', 'Flasche'],
   ['Prosecco', 'Wein & Prosecco', 'Flasche'],
   ['Aperol', 'Spirituosen', 'Flasche'],
 ];
@@ -74,6 +86,7 @@ const localStore = {
         data.artikel.forEach((a) => {
           a.waggon ??= 0;
           a.mindestWaggon ??= 0;
+          a.proKiste ??= 0;
         });
         data.buchungen.forEach((b) => {
           b.artikelName ??= data.artikel.find((a) => a.id === b.artikelId)?.name ?? '';
@@ -138,7 +151,8 @@ let sb = null; // Supabase-Client
 const mapArtikel = (r) => ({
   id: r.id, name: r.name, sorte: r.sorte ?? '', einheit: r.einheit, notiz: r.notiz,
   mindest: Number(r.mindest), bestand: Number(r.bestand),
-  mindestWaggon: Number(r.mindest_waggon ?? 0), waggon: Number(r.waggon ?? 0), angelegt: r.angelegt,
+  mindestWaggon: Number(r.mindest_waggon ?? 0), waggon: Number(r.waggon ?? 0), proKiste: Number(r.pro_kiste ?? 0),
+  angelegt: r.angelegt,
 });
 const mapBuchung = (r) => ({
   id: r.id, artikelId: r.artikel_id, artikelName: r.artikel_name, typ: r.typ,
@@ -148,7 +162,7 @@ const mapBuchung = (r) => ({
 });
 const artikelZeile = (d) => ({
   name: d.name, sorte: d.sorte, einheit: d.einheit, mindest: d.mindest,
-  mindest_waggon: d.mindestWaggon, notiz: d.notiz,
+  mindest_waggon: d.mindestWaggon, pro_kiste: d.proKiste || 0, notiz: d.notiz,
 });
 
 function dbFehler(error) {
@@ -204,7 +218,7 @@ const cloudStore = {
   async importieren(data) {
     for (const a of data.artikel) {
       const { data: neu, error } = await sb.from('artikel').insert(artikelZeile({
-        name: a.name, sorte: a.sorte || '', einheit: a.einheit || 'Kiste',
+        name: a.name, sorte: a.sorte || '', einheit: a.einheit || 'Flasche', proKiste: Number(a.proKiste) || 0,
         mindest: Number(a.mindest) || 0, mindestWaggon: Number(a.mindestWaggon) || 0, notiz: a.notiz || '',
       })).select().single();
       dbFehler(error);
@@ -230,7 +244,7 @@ async function buchen(artikelId, typ, menge, person, notiz) {
   menge = round(Number(menge));
   if (!(menge > 0)) throw new Error('Bitte eine Menge größer 0 eingeben.');
   if (typ === 'aus' && menge > a.bestand) {
-    throw new Error(`So viel ist nicht im Lager – vorhanden: ${mengeText(a.bestand, a.einheit)}.`);
+    throw new Error(`So viel ist nicht im Lager – vorhanden: ${lagerText(a)}.`);
   }
   if (typ === 'verkauf' && menge > a.waggon) {
     throw new Error(`So viel ist nicht im Waggon – vorhanden: ${mengeText(a.waggon, a.einheit)}.`);
@@ -278,7 +292,7 @@ const badge = (art, s) => `<span class="badge ${s}">${STATUS_LABEL[art][s]}</spa
 // Spalten je Ansicht: [Kopf, Zelle(a), Zahlenspalte?]
 const SPALTEN = {
   lager: [
-    ['Im Lager', (a) => esc(mengeText(a.bestand, a.einheit)), true],
+    ['Im Lager', (a) => esc(lagerText(a)), true],
     ['Mindest', (a) => fmt(a.mindest), true],
     ['Status', (a) => badge('lager', statusLager(a))],
   ],
@@ -288,7 +302,7 @@ const SPALTEN = {
     ['Status', (a) => badge('waggon', statusWaggon(a))],
   ],
   uebersicht: [
-    ['Lager', (a) => `${esc(mengeText(a.bestand, a.einheit))}${statusLager(a) === 'ok' ? '' : ` ${badge('lager', statusLager(a))}`}`, true],
+    ['Lager', (a) => `${esc(lagerText(a))}${statusLager(a) === 'ok' ? '' : ` ${badge('lager', statusLager(a))}`}`, true],
     ['Waggon', (a) => `${esc(mengeText(a.waggon, a.einheit))}${statusWaggon(a) === 'ok' ? '' : ` ${badge('waggon', statusWaggon(a))}`}`, true],
     ['Gesamt', (a) => esc(mengeText(round(a.bestand + a.waggon), a.einheit)), true],
   ],
@@ -343,7 +357,7 @@ function renderBestand() {
     : `Noch keine Getränke angelegt.<br>
        <button class="btn primary" id="btnListe">Getränkeliste anlegen (${GETRAENKELISTE.length} Getränke)</button>
        <span class="small-note">Cola, Calypso, Eistee, Jambo, Holundersirup, Radler, Bier, alkoholfreies Bier,
-       Forst, Prosecco und Aperol – Bestände und Mindestbestände trägst du danach ein.</span>`;
+       Forst, Prosecco und Aperol – Flaschen pro Kiste, Mindest- und Anfangsbestände trägst du danach ein.</span>`;
 }
 
 function renderWarnungen() {
@@ -468,6 +482,7 @@ function openArtikel(id = null) {
     f.name.value = a.name;
     f.sorte.value = SORTEN.includes(a.sorte || '') ? a.sorte || '' : '';
     f.einheit.value = a.einheit;
+    f.proKiste.value = a.proKiste || '';
     f.mindest.value = a.mindest;
     f.mindestWaggon.value = a.mindestWaggon;
     f.notiz.value = a.notiz;
@@ -481,7 +496,8 @@ formArtikel.addEventListener('submit', async (e) => {
   const daten = {
     name: f.name.value.trim(),
     sorte: f.sorte.value,
-    einheit: f.einheit.value.trim() || 'Kiste',
+    einheit: f.einheit.value.trim() || 'Flasche',
+    proKiste: zahl(f.proKiste),
     mindest: zahl(f.mindest),
     mindestWaggon: zahl(f.mindestWaggon),
     notiz: f.notiz.value.trim(),
@@ -530,11 +546,33 @@ function updateBuchungInfo() {
   if (!a) return;
   const typ = formBuchung.elements.typ.value;
   $('#dlgBuchungTitel').textContent = BUCHUNG_TITEL[typ];
-  $('#dlgBuchungInfo').innerHTML = `<strong>${esc(a.name)}</strong> · Lager: ${esc(mengeText(a.bestand, a.einheit))}`
+  $('#dlgBuchungInfo').innerHTML = `<strong>${esc(a.name)}</strong> · Lager: ${esc(lagerText(a))}`
     + ` · Waggon: ${esc(mengeText(a.waggon, a.einheit))}`;
   // Beim Verkauf alternativ den gezählten Rest im Waggon eingeben
   $('#zaehlenBox').hidden = typ !== 'verkauf';
+  // Lieferung/Auffüllen wahlweise in Kisten eingeben (nur wenn "pro Kiste" bekannt ist)
+  const kisten = typ !== 'verkauf' && a.proKiste > 0;
+  $('#eingabeWahl').hidden = !kisten;
+  if (!kisten) formBuchung.elements.eingabe.value = 'stueck';
+  $('#eingabeStueck').textContent = PLURAL[a.einheit] ?? a.einheit;
+  $('#eingabeKiste').textContent = `Kisten à ${fmt(a.proKiste)}`;
+  updateUmrechnung();
   formBuchung.elements.gezaehlt.max = a.waggon;
+}
+
+// Zeigt bei Kisten-Eingabe, wie viele Einzelstücke gebucht werden
+function stueckAusEingabe() {
+  const a = findArtikel(buchungId);
+  const f = formBuchung.elements;
+  const n = Number(f.menge.value) || 0;
+  return f.eingabe.value === 'kiste' && a ? round(n * a.proKiste) : n;
+}
+function updateUmrechnung() {
+  const a = findArtikel(buchungId);
+  const f = formBuchung.elements;
+  const el = $('#umrechnung');
+  el.hidden = !(a && f.eingabe.value === 'kiste' && Number(f.menge.value) > 0);
+  if (!el.hidden) el.textContent = `= ${mengeText(stueckAusEingabe(), a.einheit)}`;
 }
 
 function openBuchung(id, typ) {
@@ -550,7 +588,9 @@ function openBuchung(id, typ) {
 
 formBuchung.addEventListener('change', (e) => {
   if (e.target.name === 'typ') updateBuchungInfo();
+  if (e.target.name === 'eingabe') updateUmrechnung();
 });
+formBuchung.elements.menge.addEventListener('input', updateUmrechnung);
 
 // "Noch im Waggon gezählt" → verkaufte Menge = bisher im Waggon − gezählt
 formBuchung.elements.gezaehlt.addEventListener('input', (e) => {
@@ -564,7 +604,7 @@ formBuchung.addEventListener('submit', (e) => {
   e.preventDefault();
   const f = formBuchung.elements;
   ausfuehren(formBuchung, $('#buchungFehler'), async () => {
-    await buchen(buchungId, f.typ.value, f.menge.value, f.person.value, f.notiz.value);
+    await buchen(buchungId, f.typ.value, stueckAusEingabe(), f.person.value, f.notiz.value);
     letztePerson = f.person.value.trim();
   });
 });
@@ -586,10 +626,10 @@ $('#btnExport').addEventListener('click', () => {
 
 $('#btnCsv').addEventListener('click', () => {
   const zelle = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const zeilen = [['Getränk', 'Sorte', 'Lager', 'Waggon', 'Gesamt', 'Einheit', 'Mindest Lager', 'Mindest Waggon',
+  const zeilen = [['Getränk', 'Sorte', 'Lager', 'Waggon', 'Gesamt', 'Einheit', 'Stück pro Kiste', 'Mindest Lager', 'Mindest Waggon',
     'Status Lager', 'Status Waggon', 'Notiz']]
     .concat([...state.artikel].sort(byName).map((a) => [
-      a.name, sorteName(a.sorte), fmt(a.bestand), fmt(a.waggon), fmt(round(a.bestand + a.waggon)), a.einheit,
+      a.name, sorteName(a.sorte), fmt(a.bestand), fmt(a.waggon), fmt(round(a.bestand + a.waggon)), a.einheit, a.proKiste ? fmt(a.proKiste) : '',
       fmt(a.mindest), fmt(a.mindestWaggon),
       STATUS_LABEL.lager[statusLager(a)], STATUS_LABEL.waggon[statusWaggon(a)], a.notiz,
     ]));
@@ -660,10 +700,10 @@ $('#leer').addEventListener('click', async (e) => {
     const vorhanden = new Set(state.artikel.map((a) => a.name.toLowerCase()));
     for (const [name, sorte, einheit] of GETRAENKELISTE) {
       if (vorhanden.has(name.toLowerCase())) continue;
-      await store.artikelSpeichern({ name, sorte, einheit, mindest: 0, mindestWaggon: 0, notiz: '' });
+      await store.artikelSpeichern({ name, sorte, einheit, proKiste: 0, mindest: 0, mindestWaggon: 0, notiz: '' });
     }
     render();
-    toast('Getränkeliste angelegt – jetzt Bestände einbuchen und Mindestbestände eintragen');
+    toast('Getränkeliste angelegt – jetzt Flaschen pro Kiste, Mindestbestände und Bestände eintragen', 5000);
   } catch (err) {
     e.target.disabled = false;
     hinweis('Anlegen fehlgeschlagen', err.message);
@@ -767,23 +807,23 @@ $('#btnLogout').addEventListener('click', () => sb.auth.signOut());
 
 // Nur für die Testversion (CFG.demo): Getränkeliste mit Beispielzahlen und etwas Verlauf
 async function beispielDatenAnlegen() {
-  // [Mindest Lager, Mindest Waggon, Lieferung, ins Waggon gebracht, im Waggon verkauft]
+  // In Einzelstücken: [pro Kiste, Mindest Lager, Mindest Waggon, Lieferung, ins Waggon gebracht, verkauft]
   const beispiel = {
-    Cola: [5, 2, 16, 6, 2],
-    Calypso: [4, 2, 10, 5, 4],
-    Eistee: [4, 2, 12, 4, 1],
-    Jambo: [3, 1, 6, 3, 1],
-    Holundersirup: [3, 1, 8, 3, 1],
-    'Hacker-Pschorr Radler': [4, 2, 12, 5, 2],
-    Bier: [6, 3, 20, 8, 6],
-    'Alkoholfreies Bier': [3, 1, 6, 2, 0],
-    Forst: [5, 2, 15, 6, 2],
-    Prosecco: [6, 2, 14, 8, 4],
-    Aperol: [2, 1, 5, 2, 0],
+    Cola: [24, 48, 12, 96, 24, 15],
+    Calypso: [24, 48, 12, 72, 24, 6],
+    Eistee: [24, 48, 12, 96, 24, 8],
+    Jambo: [24, 24, 8, 48, 12, 2],
+    Holundersirup: [0, 3, 1, 6, 2, 0],
+    'Hacker-Pschorr Radler': [20, 40, 10, 80, 20, 6],
+    Bier: [20, 60, 15, 120, 40, 32],
+    'Alkoholfreies Bier': [20, 20, 6, 40, 10, 2],
+    Forst: [20, 40, 10, 100, 20, 5],
+    Prosecco: [6, 12, 4, 24, 12, 6],
+    Aperol: [0, 2, 1, 6, 2, 0],
   };
   for (const [name, sorte, einheit] of GETRAENKELISTE) {
-    const [mindest, mindestWaggon, lieferung, inWaggon, verkauft] = beispiel[name];
-    const a = await store.artikelSpeichern({ name, sorte, einheit, mindest, mindestWaggon, notiz: '' });
+    const [proKiste, mindest, mindestWaggon, lieferung, inWaggon, verkauft] = beispiel[name];
+    const a = await store.artikelSpeichern({ name, sorte, einheit, proKiste, mindest, mindestWaggon, notiz: '' });
     await store.buchen(a.id, 'ein', lieferung, '', 'Lieferung Getränkehandel');
     await store.buchen(a.id, 'aus', inWaggon, 'Beispiel', 'Waggon aufgefüllt');
     if (verkauft) await store.buchen(a.id, 'verkauf', verkauft, 'Beispiel', 'Abrechnung Sonntag');
@@ -797,7 +837,7 @@ async function start() {
       $('#lokalHinweis').innerHTML = '<strong>Testversion:</strong> Bestände und Buchungen sind Beispielzahlen. '
         + 'Alles, was du hier änderst, bleibt nur in deinem Browser.';
       // Beispieldaten neu anlegen, wenn leer oder von einer älteren Testversion
-      const DEMO_VERSION = 2;
+      const DEMO_VERSION = 3;
       await store.laden();
       if (!state.artikel.length || state.demoVersion !== DEMO_VERSION) {
         state = { artikel: [], buchungen: [] };
