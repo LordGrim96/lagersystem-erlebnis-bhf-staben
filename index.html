@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lager · Erlebnisbahnhof Staben</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">🚂</span>
+      <div>
+        <h1>Lagersystem</h1>
+        <p class="sub">Erlebnisbahnhof Staben</p>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="bestand" role="tab">Bestand</button>
+      <button class="tab" data-view="verlauf" role="tab">Verlauf</button>
+      <button class="tab" data-view="daten" role="tab">Daten</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Bestand -->
+    <section id="view-bestand" class="view active">
+      <div id="warnungen" class="warn-box" hidden></div>
+
+      <div class="toolbar">
+        <input id="suche" type="search" placeholder="Artikel oder Lagerort suchen …" autocomplete="off">
+        <label class="check"><input id="nurKritisch" type="checkbox"> nur Nachbestellbedarf</label>
+        <button id="btnNeu" class="btn primary">+ Neuer Artikel</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="list">
+          <thead>
+            <tr>
+              <th>Artikel</th>
+              <th>Lagerort</th>
+              <th class="num">Bestand</th>
+              <th class="num">Mindest</th>
+              <th>Status</th>
+              <th class="actions">Buchen</th>
+            </tr>
+          </thead>
+          <tbody id="artikelListe"></tbody>
+        </table>
+        <p id="leer" class="empty" hidden>Noch keine Artikel. Lege mit „+ Neuer Artikel“ den ersten an.</p>
+      </div>
+    </section>
+
+    <!-- Verlauf -->
+    <section id="view-verlauf" class="view">
+      <div class="toolbar">
+        <select id="verlaufFilter">
+          <option value="">Alle Artikel</option>
+        </select>
+        <select id="verlaufTyp">
+          <option value="">Ein- & Ausgänge</option>
+          <option value="ein">nur Eingänge</option>
+          <option value="aus">nur Ausgänge</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table class="list">
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Artikel</th>
+              <th>Art</th>
+              <th class="num">Menge</th>
+              <th class="num">Bestand danach</th>
+              <th>Person</th>
+              <th>Notiz</th>
+            </tr>
+          </thead>
+          <tbody id="verlaufListe"></tbody>
+        </table>
+        <p id="verlaufLeer" class="empty" hidden>Noch keine Buchungen.</p>
+      </div>
+    </section>
+
+    <!-- Daten -->
+    <section id="view-daten" class="view">
+      <div class="card">
+        <h2>Datensicherung</h2>
+        <p>Die Daten werden in diesem Browser gespeichert. Erstelle regelmäßig eine Sicherung –
+          damit kannst du die Daten auch auf ein anderes Gerät übertragen.</p>
+        <div class="row">
+          <button id="btnExport" class="btn">Sicherung herunterladen (JSON)</button>
+          <button id="btnCsv" class="btn">Bestandsliste als CSV</button>
+          <label class="btn">
+            Sicherung einspielen
+            <input id="importFile" type="file" accept="application/json,.json" hidden>
+          </label>
+        </div>
+      </div>
+      <div class="card danger">
+        <h2>Alles löschen</h2>
+        <p>Entfernt alle Artikel und Buchungen aus diesem Browser.</p>
+        <button id="btnReset" class="btn danger">Alle Daten löschen</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Dialog: Artikel anlegen/bearbeiten -->
+  <dialog id="dlgArtikel">
+    <form id="formArtikel" method="dialog">
+      <h2 id="dlgArtikelTitel">Neuer Artikel</h2>
+      <label>Bezeichnung *
+        <input name="name" required maxlength="120">
+      </label>
+      <div class="grid2">
+        <label>Lagerort
+          <input name="ort" maxlength="80" list="orteListe" placeholder="z. B. Lokschuppen, Regal 3">
+        </label>
+        <label>Einheit
+          <input name="einheit" maxlength="20" list="einheitenListe" placeholder="Stück">
+        </label>
+      </div>
+      <div class="grid2">
+        <label>Mindestbestand
+          <input name="mindest" type="number" min="0" step="any" value="0">
+        </label>
+        <label class="only-new">Anfangsbestand
+          <input name="anfang" type="number" min="0" step="any" value="0">
+        </label>
+      </div>
+      <label>Notiz
+        <input name="notiz" maxlength="200" placeholder="z. B. Lieferant, Artikelnummer">
+      </label>
+      <menu>
+        <button type="button" id="btnArtikelLoeschen" class="btn danger left" hidden>Löschen</button>
+        <button value="cancel" formnovalidate class="btn">Abbrechen</button>
+        <button value="ok" class="btn primary">Speichern</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <!-- Dialog: Buchen -->
+  <dialog id="dlgBuchung">
+    <form id="formBuchung" method="dialog">
+      <h2 id="dlgBuchungTitel">Buchen</h2>
+      <p id="dlgBuchungInfo" class="muted"></p>
+      <div class="seg">
+        <label><input type="radio" name="typ" value="ein" checked><span>Eingang +</span></label>
+        <label><input type="radio" name="typ" value="aus"><span>Ausgang −</span></label>
+      </div>
+      <div class="grid2">
+        <label>Menge *
+          <input name="menge" type="number" min="0.001" step="any" required>
+        </label>
+        <label>Person
+          <input name="person" maxlength="60" list="personenListe">
+        </label>
+      </div>
+      <label>Notiz
+        <input name="notiz" maxlength="200" placeholder="z. B. Lieferung, Veranstaltung, Reparatur">
+      </label>
+      <p id="buchungFehler" class="error" hidden></p>
+      <menu>
+        <button value="cancel" formnovalidate class="btn">Abbrechen</button>
+        <button value="ok" class="btn primary">Buchen</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <datalist id="orteListe"></datalist>
+  <datalist id="einheitenListe">
+    <option value="Stück"><option value="Liter"><option value="kg"><option value="m"><option value="Packung"><option value="Karton">
+  </datalist>
+  <datalist id="personenListe"></datalist>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
