@@ -32,6 +32,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   margin: 0;
   background: var(--bg);
@@ -46,6 +47,12 @@ body {
   position: sticky; top: 0; z-index: 5;
 }
 .brand { display: flex; align-items: center; gap: 12px; }
+.user { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+.user #userName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 30vw; }
+.sync { width: 10px; height: 10px; border-radius: 50%; background: #bbb; flex: none; }
+.sync.ok { background: #6fdc8c; box-shadow: 0 0 0 2px rgba(255,255,255,.35); }
+.sync.off { background: #ffb74d; box-shadow: 0 0 0 2px rgba(255,255,255,.35); }
+.btn.ghost { background: transparent; color: inherit; border-color: rgba(255,255,255,.5); }
 .logo { font-size: 28px; }
 h1 { margin: 0; font-size: 20px; }
 .sub { margin: 0; opacity: .85; font-size: 13px; }
@@ -100,7 +107,7 @@ table.list { width: 100%; border-collapse: collapse; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 700; }
 .badge.ok { background: var(--ok-bg); color: var(--ok); }
 .badge.warn { background: var(--warn-bg); color: var(--warn); }
-.badge.crit { background: var(--crit-bg); color: var(--crit); }
+.badge.crit { background: var(--crit); color: #fff; }
 .typ-ein { color: var(--ok); font-weight: 600; }
 .typ-aus { color: var(--crit); font-weight: 600; }
 
@@ -111,6 +118,15 @@ table.list { width: 100%; border-collapse: collapse; }
 .warn-box strong { display: block; margin-bottom: 4px; }
 .warn-box ul { margin: 0; padding-left: 18px; }
 
+.info-box {
+  background: var(--surface); color: var(--muted); border: 1px dashed var(--border);
+  border-radius: var(--radius); padding: 10px 14px; margin-bottom: 14px; font-size: 14px;
+}
+.info-box strong { color: var(--text); }
+.login { max-width: 380px; margin: 40px auto; display: flex; flex-direction: column; gap: 12px; }
+.login label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.muted-text { color: var(--muted); margin: 0; }
+.btn:disabled { opacity: .6; cursor: progress; }
 .empty { text-align: center; color: var(--muted); padding: 28px 12px; margin: 0; }
 .muted { color: var(--muted); margin-top: -6px; }
 .error { color: var(--crit); font-weight: 600; margin: 0; }

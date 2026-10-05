@@ -1,31 +1,6 @@
 'use strict';
 
-// ---------- Datenhaltung ----------
-const STORAGE_KEY = 'lager-bhf-staben-v1';
-
-let state = load();
-
-function load() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const data = JSON.parse(raw);
-      if (Array.isArray(data.artikel) && Array.isArray(data.buchungen)) return data;
-    }
-  } catch (e) {
-    console.warn('Daten konnten nicht geladen werden', e);
-  }
-  return { artikel: [], buchungen: [] };
-}
-
-function save() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) {
-    toast('Speichern fehlgeschlagen! Bitte Sicherung herunterladen.');
-  }
-}
-
+// ---------- Hilfsfunktionen ----------
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const round = (n) => Math.round(n * 1000) / 1000;
 const fmt = (n) => Number(n).toLocaleString('de-DE', { maximumFractionDigits: 3 });
@@ -36,7 +11,9 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 }[c]));
 const $ = (sel) => document.querySelector(sel);
+const byName = (x, y) => x.name.localeCompare(y.name, 'de');
 
+let state = { artikel: [], buchungen: [] };
 const findArtikel = (id) => state.artikel.find((a) => a.id === id);
 
 // Status: "krit" = Mindestbestand erreicht/unterschritten, "warn" = knapp darüber
@@ -47,8 +24,156 @@ function status(a) {
 }
 const STATUS_LABEL = { ok: 'OK', warn: 'knapp', krit: 'nachbestellen' };
 
+// ---------- Speicher: lokal (Browser) ----------
+const STORAGE_KEY = 'lager-bhf-staben-v1';
+
+const localStore = {
+  cloud: false,
+  async laden() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      if (data && Array.isArray(data.artikel) && Array.isArray(data.buchungen)) {
+        // Ältere Buchungen ohne Artikelnamen ergänzen
+        data.buchungen.forEach((b) => {
+          b.artikelName ??= data.artikel.find((a) => a.id === b.artikelId)?.name ?? '';
+        });
+        state = data;
+        return;
+      }
+    } catch (e) {
+      console.warn('Daten konnten nicht geladen werden', e);
+    }
+    state = { artikel: [], buchungen: [] };
+  },
+  persist() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      throw new Error('Speichern fehlgeschlagen! Bitte Sicherung herunterladen.');
+    }
+  },
+  async artikelSpeichern(daten, id) {
+    if (id) {
+      Object.assign(findArtikel(id), daten);
+      this.persist();
+      return findArtikel(id);
+    }
+    const a = { id: uid(), ...daten, bestand: 0, angelegt: new Date().toISOString() };
+    state.artikel.push(a);
+    this.persist();
+    return a;
+  },
+  async artikelLoeschen(id) {
+    state.artikel = state.artikel.filter((a) => a.id !== id);
+    this.persist();
+  },
+  async buchen(artikelId, typ, menge, person, notiz) {
+    const a = findArtikel(artikelId);
+    a.bestand = round(a.bestand + (typ === 'ein' ? menge : -menge));
+    state.buchungen.push({
+      id: uid(), artikelId, artikelName: a.name, typ, menge, bestandDanach: a.bestand,
+      person, notiz, datum: new Date().toISOString(),
+    });
+    this.persist();
+  },
+  async importieren(data) {
+    state = data;
+    this.persist();
+    await this.laden();
+  },
+  async reset() {
+    state = { artikel: [], buchungen: [] };
+    this.persist();
+  },
+};
+
+// ---------- Speicher: gemeinsame Datenbank (Supabase) ----------
+const CFG = window.LAGER_CONFIG || {};
+let sb = null; // Supabase-Client
+
+const mapArtikel = (r) => ({
+  id: r.id, name: r.name, ort: r.ort, einheit: r.einheit, notiz: r.notiz,
+  mindest: Number(r.mindest), bestand: Number(r.bestand), angelegt: r.angelegt,
+});
+const mapBuchung = (r) => ({
+  id: r.id, artikelId: r.artikel_id, artikelName: r.artikel_name, typ: r.typ,
+  menge: Number(r.menge), bestandDanach: Number(r.bestand_danach),
+  person: r.person, notiz: r.notiz, datum: r.datum,
+});
+
+function dbFehler(error) {
+  if (!error) return;
+  const msg = error.message || String(error);
+  if (/fetch|network/i.test(msg)) throw new Error('Keine Verbindung zur Datenbank. Bitte Internet prüfen.');
+  throw new Error(msg);
+}
+
+async function alleZeilen(tabelle, sortierung) {
+  const SEITE = 1000;
+  const zeilen = [];
+  for (let von = 0; ; von += SEITE) {
+    const { data, error } = await sb.from(tabelle).select('*')
+      .order(sortierung, { ascending: true }).range(von, von + SEITE - 1);
+    dbFehler(error);
+    zeilen.push(...data);
+    if (data.length < SEITE) return zeilen;
+  }
+}
+
+const cloudStore = {
+  cloud: true,
+  async laden() {
+    const [artikel, buchungen] = await Promise.all([
+      alleZeilen('artikel', 'name'), alleZeilen('buchungen', 'datum'),
+    ]);
+    state = { artikel: artikel.map(mapArtikel), buchungen: buchungen.map(mapBuchung) };
+  },
+  async artikelSpeichern(daten, id) {
+    const q = id
+      ? sb.from('artikel').update(daten).eq('id', id)
+      : sb.from('artikel').insert(daten);
+    const { data, error } = await q.select().single();
+    dbFehler(error);
+    await this.laden();
+    return mapArtikel(data);
+  },
+  async artikelLoeschen(id) {
+    const { error } = await sb.from('artikel').delete().eq('id', id);
+    dbFehler(error);
+    await this.laden();
+  },
+  async buchen(artikelId, typ, menge, person, notiz) {
+    const { error } = await sb.rpc('buchen', {
+      p_artikel: artikelId, p_typ: typ, p_menge: menge, p_person: person, p_notiz: notiz,
+    });
+    dbFehler(error);
+    await this.laden();
+  },
+  // Übernimmt Artikel und aktuelle Bestände aus einer Sicherung (z. B. aus dem lokalen Modus).
+  // Der alte Buchungsverlauf wird dabei nicht übertragen.
+  async importieren(data) {
+    for (const a of data.artikel) {
+      const { data: neu, error } = await sb.from('artikel').insert({
+        name: a.name, ort: a.ort || '', einheit: a.einheit || 'Stück',
+        mindest: Number(a.mindest) || 0, notiz: a.notiz || '',
+      }).select().single();
+      dbFehler(error);
+      const bestand = Number(a.bestand) || 0;
+      if (bestand > 0) {
+        const r = await sb.rpc('buchen', {
+          p_artikel: neu.id, p_typ: 'ein', p_menge: bestand, p_person: '', p_notiz: 'Übernahme aus Sicherung',
+        });
+        dbFehler(r.error);
+      }
+    }
+    await this.laden();
+  },
+};
+
+let store = localStore;
+
 // ---------- Fachlogik ----------
-function buchen(artikelId, typ, menge, person, notiz) {
+async function buchen(artikelId, typ, menge, person, notiz) {
   const a = findArtikel(artikelId);
   if (!a) throw new Error('Artikel nicht gefunden.');
   menge = round(Number(menge));
@@ -57,21 +182,25 @@ function buchen(artikelId, typ, menge, person, notiz) {
     throw new Error(`Nicht genug auf Lager – verfügbar: ${fmt(a.bestand)} ${a.einheit}.`);
   }
   const vorher = status(a);
-  a.bestand = round(a.bestand + (typ === 'ein' ? menge : -menge));
-  state.buchungen.push({
-    id: uid(), artikelId, typ, menge, bestandDanach: a.bestand,
-    person: person.trim(), notiz: notiz.trim(), datum: new Date().toISOString(),
-  });
-  save();
-  const nachher = status(a);
-  if (nachher === 'krit' && vorher !== 'krit') {
+  await store.buchen(artikelId, typ, menge, person.trim(), notiz.trim());
+  const nachher = findArtikel(artikelId);
+  if (nachher && status(nachher) === 'krit' && vorher !== 'krit') {
     toast(`⚠️ ${a.name}: Mindestbestand erreicht – bitte nachbestellen!`, 5000);
   } else {
     toast(`${typ === 'ein' ? 'Eingang' : 'Ausgang'} gebucht: ${fmt(menge)} ${a.einheit} ${a.name}`);
   }
 }
 
-// ---------- Rendering ----------
+// ---------- Ansichten ----------
+let aktiveAnsicht = 'bestand';
+
+function zeigeAnsicht(name) {
+  if (['bestand', 'verlauf', 'daten'].includes(name)) aktiveAnsicht = name;
+  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.view === name));
+  $('#tabs').hidden = name === 'login' || name === 'laden';
+}
+
 function render() {
   renderBestand();
   renderWarnungen();
@@ -85,7 +214,7 @@ function renderBestand() {
   const liste = state.artikel
     .filter((a) => !q || a.name.toLowerCase().includes(q) || (a.ort || '').toLowerCase().includes(q))
     .filter((a) => !nurKrit || status(a) === 'krit')
-    .sort((x, y) => x.name.localeCompare(y.name, 'de'));
+    .sort(byName);
 
   $('#artikelListe').innerHTML = liste.map((a) => {
     const s = status(a);
@@ -111,8 +240,7 @@ function renderBestand() {
 }
 
 function renderWarnungen() {
-  const krit = state.artikel.filter((a) => status(a) === 'krit')
-    .sort((x, y) => x.name.localeCompare(y.name, 'de'));
+  const krit = state.artikel.filter((a) => status(a) === 'krit').sort(byName);
   const box = $('#warnungen');
   box.hidden = krit.length === 0;
   if (!krit.length) return;
@@ -123,8 +251,7 @@ function renderWarnungen() {
 function renderVerlauf() {
   const sel = $('#verlaufFilter');
   const aktuell = sel.value;
-  sel.innerHTML = '<option value="">Alle Artikel</option>' + [...state.artikel]
-    .sort((x, y) => x.name.localeCompare(y.name, 'de'))
+  sel.innerHTML = '<option value="">Alle Artikel</option>' + [...state.artikel].sort(byName)
     .map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
   sel.value = findArtikel(aktuell) ? aktuell : '';
 
@@ -136,12 +263,12 @@ function renderVerlauf() {
 
   $('#verlaufListe').innerHTML = liste.map((b) => {
     const a = findArtikel(b.artikelId);
-    const einheit = a ? a.einheit : '';
+    const name = a ? esc(a.name) : `${esc(b.artikelName)} <em>(gelöscht)</em>`;
     return `<tr>
       <td>${fmtDate(b.datum)}</td>
-      <td>${a ? esc(a.name) : '<em>(gelöscht)</em>'}</td>
+      <td>${name}</td>
       <td class="typ-${b.typ}">${b.typ === 'ein' ? 'Eingang' : 'Ausgang'}</td>
-      <td class="num">${b.typ === 'ein' ? '+' : '−'}${fmt(b.menge)} ${esc(einheit)}</td>
+      <td class="num">${b.typ === 'ein' ? '+' : '−'}${fmt(b.menge)} ${esc(a ? a.einheit : '')}</td>
       <td class="num">${fmt(b.bestandDanach)}</td>
       <td>${esc(b.person || '–')}</td>
       <td>${esc(b.notiz || '')}</td>
@@ -158,6 +285,27 @@ function renderDatalists() {
     .map((p) => `<option value="${esc(p)}">`).join('');
 }
 
+// ---------- Formulare: gemeinsames Verhalten ----------
+// Sperrt den Speichern-Button während einer (evtl. langsamen) Datenbank-Aktion
+// und zeigt Fehler im Dialog an, statt ihn zu schließen.
+async function ausfuehren(form, fehlerEl, aktion) {
+  const btn = form.querySelector('button:not([type=button])');
+  btn.disabled = true;
+  fehlerEl.hidden = true;
+  try {
+    await aktion();
+    form.closest('dialog')?.close();
+    render();
+  } catch (err) {
+    fehlerEl.textContent = err.message;
+    fehlerEl.hidden = false;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('dialog').close()));
+
 // ---------- Artikel-Dialog ----------
 const dlgArtikel = $('#dlgArtikel');
 const formArtikel = $('#formArtikel');
@@ -166,23 +314,25 @@ let editId = null;
 function openArtikel(id = null) {
   editId = id;
   formArtikel.reset();
+  $('#artikelFehler').hidden = true;
   const a = id ? findArtikel(id) : null;
   $('#dlgArtikelTitel').textContent = a ? 'Artikel bearbeiten' : 'Neuer Artikel';
   $('#btnArtikelLoeschen').hidden = !a;
   formArtikel.querySelector('.only-new').hidden = !!a;
   if (a) {
-    formArtikel.name.value = a.name;
-    formArtikel.ort.value = a.ort;
-    formArtikel.einheit.value = a.einheit;
-    formArtikel.mindest.value = a.mindest;
-    formArtikel.notiz.value = a.notiz;
+    const f = formArtikel.elements;
+    f.name.value = a.name;
+    f.ort.value = a.ort;
+    f.einheit.value = a.einheit;
+    f.mindest.value = a.mindest;
+    f.notiz.value = a.notiz;
   }
   dlgArtikel.showModal();
 }
 
 formArtikel.addEventListener('submit', (e) => {
-  if (e.submitter?.value !== 'ok') return;
-  const f = formArtikel;
+  e.preventDefault();
+  const f = formArtikel.elements;
   const daten = {
     name: f.name.value.trim(),
     ort: f.ort.value.trim(),
@@ -190,37 +340,28 @@ formArtikel.addEventListener('submit', (e) => {
     mindest: Math.max(0, round(Number(f.mindest.value) || 0)),
     notiz: f.notiz.value.trim(),
   };
-  if (!daten.name) { e.preventDefault(); return; }
+  if (!daten.name) return;
   const doppelt = state.artikel.find((a) => a.id !== editId
     && a.name.toLowerCase() === daten.name.toLowerCase()
     && (a.ort || '').toLowerCase() === daten.ort.toLowerCase());
-  if (doppelt && !confirm(`„${daten.name}“ gibt es an diesem Lagerort schon. Trotzdem speichern?`)) {
-    e.preventDefault();
-    return;
-  }
+  if (doppelt && !confirm(`„${daten.name}“ gibt es an diesem Lagerort schon. Trotzdem speichern?`)) return;
 
-  if (editId) {
-    Object.assign(findArtikel(editId), daten);
-    toast('Artikel gespeichert');
-  } else {
-    const a = { id: uid(), ...daten, bestand: 0, angelegt: new Date().toISOString() };
-    state.artikel.push(a);
-    const anfang = round(Number(f.anfang.value) || 0);
-    if (anfang > 0) buchen(a.id, 'ein', anfang, '', 'Anfangsbestand');
-    toast(`Artikel „${a.name}“ angelegt`);
-  }
-  save();
-  render();
+  const id = editId;
+  const anfang = round(Number(f.anfang.value) || 0);
+  ausfuehren(formArtikel, $('#artikelFehler'), async () => {
+    const a = await store.artikelSpeichern(daten, id);
+    if (!id && anfang > 0) await store.buchen(a.id, 'ein', anfang, '', 'Anfangsbestand');
+    toast(id ? 'Artikel gespeichert' : `Artikel „${a.name}“ angelegt`);
+  });
 });
 
 $('#btnArtikelLoeschen').addEventListener('click', () => {
   const a = findArtikel(editId);
   if (!a || !confirm(`„${a.name}“ wirklich löschen? Die Buchungen bleiben im Verlauf erhalten.`)) return;
-  state.artikel = state.artikel.filter((x) => x.id !== editId);
-  save();
-  dlgArtikel.close();
-  render();
-  toast('Artikel gelöscht');
+  ausfuehren(formArtikel, $('#artikelFehler'), async () => {
+    await store.artikelLoeschen(a.id);
+    toast('Artikel gelöscht');
+  });
 });
 
 // ---------- Buchungs-Dialog ----------
@@ -232,7 +373,7 @@ let letztePerson = '';
 function updateBuchungInfo() {
   const a = findArtikel(buchungId);
   if (!a) return;
-  const typ = formBuchung.typ.value;
+  const typ = formBuchung.elements.typ.value;
   $('#dlgBuchungTitel').textContent = `${typ === 'ein' ? 'Eingang' : 'Ausgang'} buchen`;
   $('#dlgBuchungInfo').textContent = `${a.name} · aktuell ${fmt(a.bestand)} ${a.einheit}`
     + (a.mindest > 0 ? ` · Mindestbestand ${fmt(a.mindest)}` : '');
@@ -241,12 +382,12 @@ function updateBuchungInfo() {
 function openBuchung(id, typ) {
   buchungId = id;
   formBuchung.reset();
-  formBuchung.typ.value = typ;
-  formBuchung.person.value = letztePerson;
+  formBuchung.elements.typ.value = typ;
+  formBuchung.elements.person.value = letztePerson;
   $('#buchungFehler').hidden = true;
   updateBuchungInfo();
   dlgBuchung.showModal();
-  formBuchung.menge.focus();
+  formBuchung.elements.menge.focus();
 }
 
 formBuchung.addEventListener('change', (e) => {
@@ -254,18 +395,12 @@ formBuchung.addEventListener('change', (e) => {
 });
 
 formBuchung.addEventListener('submit', (e) => {
-  if (e.submitter?.value !== 'ok') return;
-  try {
-    const f = formBuchung;
-    buchen(buchungId, f.typ.value, f.menge.value, f.person.value, f.notiz.value);
+  e.preventDefault();
+  const f = formBuchung.elements;
+  ausfuehren(formBuchung, $('#buchungFehler'), async () => {
+    await buchen(buchungId, f.typ.value, f.menge.value, f.person.value, f.notiz.value);
     letztePerson = f.person.value.trim();
-    render();
-  } catch (err) {
-    e.preventDefault();
-    const p = $('#buchungFehler');
-    p.textContent = err.message;
-    p.hidden = false;
-  }
+  });
 });
 
 // ---------- Daten: Export / Import ----------
@@ -286,7 +421,7 @@ $('#btnExport').addEventListener('click', () => {
 $('#btnCsv').addEventListener('click', () => {
   const zelle = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const zeilen = [['Artikel', 'Lagerort', 'Bestand', 'Einheit', 'Mindestbestand', 'Status', 'Notiz']]
-    .concat([...state.artikel].sort((x, y) => x.name.localeCompare(y.name, 'de')).map((a) => [
+    .concat([...state.artikel].sort(byName).map((a) => [
       a.name, a.ort, fmt(a.bestand), a.einheit, fmt(a.mindest), STATUS_LABEL[status(a)], a.notiz,
     ]));
   // BOM + Semikolon, damit Excel (deutsch) die Datei direkt richtig öffnet
@@ -298,33 +433,41 @@ $('#importFile').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   e.target.value = '';
   if (!file) return;
+  let data;
   try {
-    const data = JSON.parse(await file.text());
+    data = JSON.parse(await file.text());
     if (!Array.isArray(data.artikel) || !Array.isArray(data.buchungen)) throw new Error();
-    if (!confirm(`Sicherung mit ${data.artikel.length} Artikeln und ${data.buchungen.length} Buchungen einspielen?\nDie aktuellen Daten in diesem Browser werden ersetzt.`)) return;
-    state = data;
-    save();
-    render();
-    toast('Sicherung eingespielt');
   } catch {
     alert('Die Datei ist keine gültige Sicherung.');
+    return;
   }
+  const frage = store.cloud
+    ? `${data.artikel.length} Artikel mit ihren aktuellen Beständen in die gemeinsame Datenbank übernehmen?\n`
+      + 'Sie werden zu den vorhandenen Artikeln hinzugefügt. Der alte Buchungsverlauf wird nicht übertragen.'
+    : `Sicherung mit ${data.artikel.length} Artikeln und ${data.buchungen.length} Buchungen einspielen?\n`
+      + 'Die aktuellen Daten in diesem Browser werden ersetzt.';
+  if (!confirm(frage)) return;
+  try {
+    toast('Übernehme Daten …', 60000);
+    await store.importieren(data);
+    toast('Daten übernommen');
+  } catch (err) {
+    alert(`Fehler beim Einspielen: ${err.message}`);
+    await neuLaden();
+  }
+  render();
 });
 
-$('#btnReset').addEventListener('click', () => {
+$('#btnReset').addEventListener('click', async () => {
   if (!confirm('Wirklich ALLE Artikel und Buchungen löschen?')) return;
   if (prompt('Zur Bestätigung bitte LÖSCHEN eintippen:') !== 'LÖSCHEN') return;
-  state = { artikel: [], buchungen: [] };
-  save();
+  await store.reset();
   render();
   toast('Alle Daten gelöscht');
 });
 
 // ---------- Allgemeine Events ----------
-document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => {
-  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
-  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${tab.dataset.view}`));
-}));
+document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => zeigeAnsicht(tab.dataset.view)));
 
 $('#btnNeu').addEventListener('click', () => openArtikel());
 $('#suche').addEventListener('input', renderBestand);
@@ -348,4 +491,125 @@ function toast(text, ms = 2500) {
   toastTimer = setTimeout(() => { t.hidden = true; }, ms);
 }
 
-render();
+function setSync(ok, text) {
+  const s = $('#sync');
+  s.className = `sync ${ok ? 'ok' : 'off'}`;
+  s.title = text;
+}
+
+// ---------- Start ----------
+async function neuLaden() {
+  try {
+    await store.laden();
+    if (store.cloud) setSync(true, 'Verbunden – Daten aktuell');
+  } catch (err) {
+    setSync(false, err.message);
+    toast(err.message, 5000);
+  }
+  render();
+}
+
+// Änderungen von anderen Geräten zusammenfassen und dann neu laden
+let refreshTimer;
+const spaeterNeuLaden = () => {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(neuLaden, 300);
+};
+
+function ladeSkript(src) {
+  return new Promise((resolve, reject) => {
+    const s = Object.assign(document.createElement('script'), { src, onload: resolve, onerror: reject });
+    document.head.append(s);
+  });
+}
+
+let liveKanal = null;
+
+async function angemeldet(session) {
+  const user = session.user;
+  $('#userBox').hidden = false;
+  $('#userName').textContent = user.user_metadata?.name || user.email;
+  letztePerson ||= user.user_metadata?.name || user.email.split('@')[0];
+  zeigeAnsicht('laden');
+  await neuLaden();
+  zeigeAnsicht(aktiveAnsicht);
+
+  liveKanal ??= sb.channel('lager-aenderungen')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'artikel' }, spaeterNeuLaden)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'buchungen' }, spaeterNeuLaden)
+    .subscribe((s) => {
+      if (s === 'SUBSCRIBED') setSync(true, 'Verbunden – Live-Abgleich aktiv');
+      else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') setSync(false, 'Live-Abgleich unterbrochen');
+    });
+}
+
+function abgemeldet() {
+  if (liveKanal) { sb.removeChannel(liveKanal); liveKanal = null; }
+  state = { artikel: [], buchungen: [] };
+  render();
+  $('#userBox').hidden = true;
+  zeigeAnsicht('login');
+}
+
+$('#formLogin').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target.elements;
+  const fehler = $('#loginFehler');
+  const btn = e.target.querySelector('button');
+  btn.disabled = true;
+  fehler.hidden = true;
+  const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.passwort.value });
+  btn.disabled = false;
+  if (error) {
+    fehler.textContent = /invalid/i.test(error.message) ? 'E-Mail oder Passwort falsch.' : error.message;
+    fehler.hidden = false;
+  } else {
+    f.passwort.value = '';
+  }
+});
+
+$('#btnLogout').addEventListener('click', () => sb.auth.signOut());
+
+async function start() {
+  if (!(CFG.supabaseUrl && CFG.supabaseAnonKey)) {
+    $('#lokalHinweis').hidden = false;
+    $('#datenText').textContent = 'Die Daten werden in diesem Browser gespeichert. Erstelle regelmäßig eine '
+      + 'Sicherung – damit kannst du die Daten auch auf ein anderes Gerät oder in die gemeinsame Datenbank übertragen.';
+    await neuLaden();
+    zeigeAnsicht('bestand');
+    return;
+  }
+
+  store = cloudStore;
+  $('#resetCard').hidden = true;
+  $('#importLabel').textContent = 'Sicherung übernehmen';
+  $('#datenText').textContent = 'Die Daten liegen in der gemeinsamen Datenbank und sind auf allen Geräten gleich. '
+    + 'Hier kannst du zusätzlich eine Sicherung herunterladen oder Artikel aus einer Sicherung (z. B. aus dem lokalen Modus) übernehmen.';
+  zeigeAnsicht('laden');
+  try {
+    await ladeSkript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js');
+  } catch {
+    $('#view-laden').innerHTML = '<p class="empty">Die Datenbank-Bibliothek konnte nicht geladen werden. Bitte Internetverbindung prüfen und neu laden.</p>';
+    return;
+  }
+  sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
+
+  let aktiv = null;
+  sb.auth.onAuthStateChange((event, session) => {
+    // Supabase ruft diesen Callback auch beim Token-Erneuern auf – nur echte Wechsel behandeln
+    const neu = session?.user?.id ?? null;
+    if (neu === aktiv) return;
+    aktiv = neu;
+    // Callback darf nicht selbst auf Supabase warten, daher entkoppeln
+    setTimeout(() => (session ? angemeldet(session) : abgemeldet()), 0);
+  });
+  const { data } = await sb.auth.getSession();
+  if (!data.session && aktiv === null) abgemeldet();
+
+  // Beim Zurückkehren zur App (z. B. Handy entsperrt) Daten auffrischen
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && aktiv) spaeterNeuLaden();
+  });
+}
+
+start();
