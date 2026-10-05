@@ -49,6 +49,7 @@ const localStore = {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
+      if (CFG.demo) return; // Testversion: ohne Browser-Speicher einfach im Speicher weiterarbeiten
       throw new Error('Speichern fehlgeschlagen! Bitte Sicherung herunterladen.');
     }
   },
@@ -285,6 +286,38 @@ function renderDatalists() {
     .map((p) => `<option value="${esc(p)}">`).join('');
 }
 
+// ---------- Rückfragen (eigener Dialog statt confirm/alert/prompt) ----------
+// Liefert true, wenn bestätigt. Mit "eingabe" muss das Wort zur Sicherheit eingetippt werden.
+function frage(titel, text, { ok = 'OK', gefahr = false, nurHinweis = false, eingabe = '' } = {}) {
+  const dlg = $('#dlgFrage');
+  $('#frageTitel').textContent = titel;
+  $('#frageText').textContent = text;
+  const okBtn = $('#frageOk');
+  okBtn.textContent = ok;
+  okBtn.className = `btn ${gefahr ? 'danger-solid' : 'primary'}`;
+  $('#frageAbbrechen').hidden = nurHinweis;
+  $('#frageEingabeLabel').hidden = !eingabe;
+  $('#frageEingabeText').textContent = `Zur Bestätigung „${eingabe}“ eintippen`;
+  const feld = $('#frageEingabe');
+  feld.value = '';
+  const pruefen = () => { okBtn.disabled = !!eingabe && feld.value.trim() !== eingabe; };
+  pruefen();
+  return new Promise((resolve) => {
+    const ende = (wert) => {
+      $('#formFrage').onsubmit = null; $('#frageAbbrechen').onclick = null; dlg.onclose = null; feld.oninput = null;
+      if (dlg.open) dlg.close();
+      resolve(wert);
+    };
+    feld.oninput = pruefen;
+    $('#formFrage').onsubmit = (e) => { e.preventDefault(); ende(true); };
+    $('#frageAbbrechen').onclick = () => ende(false);
+    dlg.onclose = () => ende(false);
+    dlg.showModal();
+    (eingabe ? feld : okBtn).focus();
+  });
+}
+const hinweis = (titel, text) => frage(titel, text, { nurHinweis: true });
+
 // ---------- Formulare: gemeinsames Verhalten ----------
 // Sperrt den Speichern-Button während einer (evtl. langsamen) Datenbank-Aktion
 // und zeigt Fehler im Dialog an, statt ihn zu schließen.
@@ -330,7 +363,7 @@ function openArtikel(id = null) {
   dlgArtikel.showModal();
 }
 
-formArtikel.addEventListener('submit', (e) => {
+formArtikel.addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = formArtikel.elements;
   const daten = {
@@ -344,7 +377,7 @@ formArtikel.addEventListener('submit', (e) => {
   const doppelt = state.artikel.find((a) => a.id !== editId
     && a.name.toLowerCase() === daten.name.toLowerCase()
     && (a.ort || '').toLowerCase() === daten.ort.toLowerCase());
-  if (doppelt && !confirm(`„${daten.name}“ gibt es an diesem Lagerort schon. Trotzdem speichern?`)) return;
+  if (doppelt && !(await frage('Artikel doppelt?', `„${daten.name}“ gibt es an diesem Lagerort schon. Trotzdem speichern?`, { ok: 'Trotzdem speichern' }))) return;
 
   const id = editId;
   const anfang = round(Number(f.anfang.value) || 0);
@@ -355,9 +388,9 @@ formArtikel.addEventListener('submit', (e) => {
   });
 });
 
-$('#btnArtikelLoeschen').addEventListener('click', () => {
+$('#btnArtikelLoeschen').addEventListener('click', async () => {
   const a = findArtikel(editId);
-  if (!a || !confirm(`„${a.name}“ wirklich löschen? Die Buchungen bleiben im Verlauf erhalten.`)) return;
+  if (!a || !(await frage('Artikel löschen?', `„${a.name}“ wird gelöscht. Die Buchungen bleiben im Verlauf erhalten.`, { ok: 'Löschen', gefahr: true }))) return;
   ausfuehren(formArtikel, $('#artikelFehler'), async () => {
     await store.artikelLoeschen(a.id);
     toast('Artikel gelöscht');
@@ -438,29 +471,28 @@ $('#importFile').addEventListener('change', async (e) => {
     data = JSON.parse(await file.text());
     if (!Array.isArray(data.artikel) || !Array.isArray(data.buchungen)) throw new Error();
   } catch {
-    alert('Die Datei ist keine gültige Sicherung.');
+    hinweis('Datei nicht lesbar', 'Die Datei ist keine gültige Sicherung des Lagersystems.');
     return;
   }
-  const frage = store.cloud
+  const text = store.cloud
     ? `${data.artikel.length} Artikel mit ihren aktuellen Beständen in die gemeinsame Datenbank übernehmen?\n`
       + 'Sie werden zu den vorhandenen Artikeln hinzugefügt. Der alte Buchungsverlauf wird nicht übertragen.'
     : `Sicherung mit ${data.artikel.length} Artikeln und ${data.buchungen.length} Buchungen einspielen?\n`
       + 'Die aktuellen Daten in diesem Browser werden ersetzt.';
-  if (!confirm(frage)) return;
+  if (!(await frage('Sicherung einspielen?', text, { ok: store.cloud ? 'Übernehmen' : 'Ersetzen', gefahr: !store.cloud }))) return;
   try {
     toast('Übernehme Daten …', 60000);
     await store.importieren(data);
     toast('Daten übernommen');
   } catch (err) {
-    alert(`Fehler beim Einspielen: ${err.message}`);
+    hinweis('Einspielen fehlgeschlagen', err.message);
     await neuLaden();
   }
   render();
 });
 
 $('#btnReset').addEventListener('click', async () => {
-  if (!confirm('Wirklich ALLE Artikel und Buchungen löschen?')) return;
-  if (prompt('Zur Bestätigung bitte LÖSCHEN eintippen:') !== 'LÖSCHEN') return;
+  if (!(await frage('Alle Daten löschen?', 'Alle Artikel und Buchungen in diesem Browser werden endgültig gelöscht.', { ok: 'Alles löschen', gefahr: true, eingabe: 'LÖSCHEN' }))) return;
   await store.reset();
   render();
   toast('Alle Daten gelöscht');
@@ -570,9 +602,32 @@ $('#formLogin').addEventListener('submit', async (e) => {
 
 $('#btnLogout').addEventListener('click', () => sb.auth.signOut());
 
+// Nur für die Testversion (CFG.demo): ein paar typische Artikel mit Verlauf
+async function beispielDatenAnlegen() {
+  const beispiele = [
+    ['Schmieröl für Draisinen', 'Lokschuppen', 'Liter', 5, 12, [['aus', 3, 'Wartung Draisine 2']]],
+    ['Bremsklötze Fahrraddraisine', 'Werkstatt, Regal 2', 'Stück', 4, 8, [['aus', 4, 'Inspektion vor Saisonstart']]],
+    ['Fahrkartenrollen', 'Kasse', 'Rolle', 10, 6, []],
+    ['Warnwesten', 'Bahnsteig-Schrank', 'Stück', 15, 18, [['aus', 2, 'Gruppenfahrt Schulklasse']]],
+    ['Erste-Hilfe-Kasten', 'Lokschuppen', 'Stück', 2, 3, []],
+    ['Getränke Mineralwasser', 'Kiosk-Lager', 'Kasten', 6, 14, [['aus', 5, 'Sommerfest'], ['ein', 4, 'Lieferung']]],
+  ];
+  for (const [name, ort, einheit, mindest, anfang, buchungen] of beispiele) {
+    const a = await store.artikelSpeichern({ name, ort, einheit, mindest, notiz: 'Beispiel' });
+    await store.buchen(a.id, 'ein', anfang, '', 'Anfangsbestand');
+    for (const [typ, menge, notiz] of buchungen) await store.buchen(a.id, typ, menge, 'Beispiel', notiz);
+  }
+}
+
 async function start() {
   if (!(CFG.supabaseUrl && CFG.supabaseAnonKey)) {
     $('#lokalHinweis').hidden = false;
+    if (CFG.demo) {
+      $('#lokalHinweis').innerHTML = '<strong>Testversion:</strong> Die Artikel sind Beispiele. '
+        + 'Alles, was du hier änderst, bleibt nur in deinem Browser.';
+      await store.laden();
+      if (!state.artikel.length) await beispielDatenAnlegen();
+    }
     $('#datenText').textContent = 'Die Daten werden in diesem Browser gespeichert. Erstelle regelmäßig eine '
       + 'Sicherung – damit kannst du die Daten auch auf ein anderes Gerät oder in die gemeinsame Datenbank übertragen.';
     await neuLaden();

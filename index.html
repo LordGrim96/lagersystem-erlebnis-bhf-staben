@@ -197,6 +197,21 @@
     </form>
   </dialog>
 
+  <!-- Dialog: Rückfrage / Hinweis (statt Browser-Popups) -->
+  <dialog id="dlgFrage">
+    <form id="formFrage">
+      <h2 id="frageTitel"></h2>
+      <p id="frageText" class="frage-text"></p>
+      <label id="frageEingabeLabel" hidden><span id="frageEingabeText"></span>
+        <input id="frageEingabe" autocomplete="off">
+      </label>
+      <menu>
+        <button type="button" class="btn" id="frageAbbrechen">Abbrechen</button>
+        <button class="btn primary" id="frageOk">OK</button>
+      </menu>
+    </form>
+  </dialog>
+
   <datalist id="orteListe"></datalist>
   <datalist id="einheitenListe">
     <option value="Stück"><option value="Liter"><option value="kg"><option value="m"><option value="Packung"><option value="Karton">
