@@ -4,15 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Getränkelager · Erlebnisbahnhof Staben</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@400;500;700;800&family=Rye&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <span class="logo" aria-hidden="true">🚂</span>
-      <div>
-        <h1>Getränkelager</h1>
+      <div class="brand-text">
         <p class="sub">Erlebnisbahnhof Staben</p>
+        <h1>Getränkelager</h1>
       </div>
       <div class="user" id="userBox" hidden>
         <span id="sync" class="sync" title="Verbindungsstatus"></span>
@@ -55,25 +57,23 @@
         <strong>Lokaler Modus:</strong> Die Daten werden nur in diesem Browser gespeichert.
         Für eine gemeinsame Datenbank siehe README („Gemeinsame Datenbank einrichten“).
       </div>
+      <div id="ortWahl" class="ort-wahl" role="group" aria-label="Ansicht wählen">
+        <button type="button" data-ort="uebersicht" aria-pressed="true">Übersicht<small>Lager + Waggon</small></button>
+        <button type="button" data-ort="lager" aria-pressed="false">Lager<small>Lieferungen</small></button>
+        <button type="button" data-ort="waggon" aria-pressed="false">Waggon<small>Auffüllen &amp; Verkauf</small></button>
+      </div>
+
       <div id="warnungen" class="warn-box" hidden></div>
 
       <div class="toolbar">
         <input id="suche" type="search" placeholder="Getränk oder Sorte suchen …" autocomplete="off">
-        <label class="check"><input id="nurKritisch" type="checkbox"> nur Nachbestellbedarf</label>
+        <label class="check"><input id="nurKritisch" type="checkbox"> <span id="nurKritischText">nur mit Handlungsbedarf</span></label>
         <button id="btnNeu" class="btn primary">+ Neues Getränk</button>
       </div>
 
       <div class="table-wrap">
         <table class="list">
-          <thead>
-            <tr>
-              <th>Getränk</th>
-              <th class="num">Im Lager</th>
-              <th class="num">Mindest</th>
-              <th>Status</th>
-              <th class="actions">Buchen</th>
-            </tr>
-          </thead>
+          <thead id="bestandKopf"></thead>
           <tbody id="artikelListe"></tbody>
         </table>
         <p id="leer" class="empty" hidden></p>
@@ -87,9 +87,10 @@
           <option value="">Alle Getränke</option>
         </select>
         <select id="verlaufTyp">
-          <option value="">Lieferungen & Waggon</option>
+          <option value="">Alle Buchungen</option>
           <option value="ein">nur Lieferungen</option>
-          <option value="aus">nur Waggon-Auffüllungen</option>
+          <option value="aus">nur Lager → Waggon</option>
+          <option value="verkauf">nur Verkäufe</option>
         </select>
       </div>
       <div class="table-wrap">
@@ -100,7 +101,7 @@
               <th>Getränk</th>
               <th>Art</th>
               <th class="num">Menge</th>
-              <th class="num">Bestand danach</th>
+              <th class="num">Danach</th>
               <th>Person</th>
               <th>Notiz</th>
             </tr>
@@ -151,17 +152,23 @@
           </select>
         </label>
       </div>
+      <label>Einheit
+        <input name="einheit" maxlength="20" list="einheitenListe" placeholder="Kiste">
+      </label>
       <div class="grid2">
-        <label>Einheit
-          <input name="einheit" maxlength="20" list="einheitenListe" placeholder="Kiste">
-        </label>
-        <label>Mindestbestand im Lager
+        <label>Mindestbestand Lager
           <input name="mindest" type="number" min="0" step="any" value="0">
         </label>
+        <label>Mindestbestand Waggon
+          <input name="mindestWaggon" type="number" min="0" step="any" value="0">
+        </label>
       </div>
-      <div class="grid2">
-        <label class="only-new">Jetzt im Lager (Anfangsbestand)
+      <div class="grid2 only-new">
+        <label>Jetzt im Lager
           <input name="anfang" type="number" min="0" step="any" value="0">
+        </label>
+        <label>Jetzt im Waggon
+          <input name="anfangWaggon" type="number" min="0" step="any" value="0">
         </label>
       </div>
       <label>Notiz
@@ -182,8 +189,9 @@
       <h2 id="dlgBuchungTitel">Buchen</h2>
       <p id="dlgBuchungInfo" class="muted"></p>
       <div class="seg">
-        <label><input type="radio" name="typ" value="ein" checked><span>+ Lieferung ins Lager</span></label>
-        <label><input type="radio" name="typ" value="aus"><span>→ In den Waggon</span></label>
+        <label><input type="radio" name="typ" value="ein" checked><span>+ Lieferung<small>ins Lager</small></span></label>
+        <label><input type="radio" name="typ" value="aus"><span>Lager → Waggon<small>auffüllen</small></span></label>
+        <label><input type="radio" name="typ" value="verkauf"><span>− Verkauft<small>aus dem Waggon</small></span></label>
       </div>
       <div class="grid2">
         <label>Menge *
@@ -193,6 +201,9 @@
           <input name="person" maxlength="60" list="personenListe">
         </label>
       </div>
+      <label id="zaehlenBox" hidden>Oder: so viel ist noch im Waggon (gezählt)
+        <input name="gezaehlt" type="number" min="0" step="any" placeholder="die verkaufte Menge wird ausgerechnet">
+      </label>
       <label>Notiz
         <input name="notiz" maxlength="200" placeholder="z. B. Getränkehandel, Sommerfest">
       </label>

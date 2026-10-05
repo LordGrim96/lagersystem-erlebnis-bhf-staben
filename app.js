@@ -13,23 +13,34 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
 const $ = (sel) => document.querySelector(sel);
 const byName = (x, y) => x.name.localeCompare(y.name, 'de');
 
+// Pro Getränk: bestand = im Lager, waggon = im Waggon (jeweils mit eigenem Mindestbestand)
 let state = { artikel: [], buchungen: [] };
 const findArtikel = (id) => state.artikel.find((a) => a.id === id);
 
-// Status: "krit" = Mindestbestand erreicht/unterschritten, "warn" = knapp darüber
-function status(a) {
-  if (a.mindest > 0 && a.bestand <= a.mindest) return 'krit';
-  if (a.mindest > 0 && a.bestand <= a.mindest * 1.25) return 'warn';
-  return 'ok';
-}
 // Menge mit Einheit, im Plural wo nötig: "1 Kiste", "3 Kisten"
 const PLURAL = { Kiste: 'Kisten', Flasche: 'Flaschen', Dose: 'Dosen', Fass: 'Fässer', Karton: 'Kartons' };
 const mengeText = (n, einheit = '') => `${fmt(n)} ${Number(n) === 1 ? einheit : PLURAL[einheit] ?? einheit}`.trim();
 
-// Wording der beiden Buchungsarten: Lieferung ins Lager, Entnahme zum Auffüllen des Waggons
-const TYP_LABEL = { ein: 'Lieferung', aus: '→ Waggon' };
+// Status: "krit" = Mindestbestand erreicht/unterschritten, "warn" = knapp darüber
+function stufe(menge, mindest) {
+  if (mindest > 0 && menge <= mindest) return 'krit';
+  if (mindest > 0 && menge <= mindest * 1.25) return 'warn';
+  return 'ok';
+}
+const statusLager = (a) => stufe(a.bestand, a.mindest);
+const statusWaggon = (a) => stufe(a.waggon, a.mindestWaggon);
+const STATUS_LABEL = {
+  lager: { ok: 'OK', warn: 'knapp', krit: 'nachbestellen' },
+  waggon: { ok: 'OK', warn: 'knapp', krit: 'auffüllen' },
+};
 
-const STATUS_LABEL = { ok: 'OK', warn: 'knapp', krit: 'nachbestellen' };
+// Buchungsarten und ihre Wirkung auf Lager und Waggon
+const TYP_LABEL = { ein: 'Lieferung', aus: 'Lager → Waggon', verkauf: 'Verkauft' };
+const WIRKUNG = {
+  ein: { lager: 1, waggon: 0 },      // Lieferung kommt ins Lager
+  aus: { lager: -1, waggon: 1 },     // Waggon wird aus dem Lager aufgefüllt
+  verkauf: { lager: 0, waggon: -1 }, // im Waggon verkauft/verbraucht
+};
 
 // Sorten in Anzeige-Reihenfolge ('' = Sonstiges)
 const SORTEN = ['Alkoholfrei', 'Bier & Radler', 'Wein & Prosecco', 'Spirituosen', ''];
@@ -59,7 +70,11 @@ const localStore = {
     try {
       const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
       if (data && Array.isArray(data.artikel) && Array.isArray(data.buchungen)) {
-        // Ältere Buchungen ohne Artikelnamen ergänzen
+        // Daten älterer Versionen ergänzen (Artikelname in Buchungen, Waggon-Bestand)
+        data.artikel.forEach((a) => {
+          a.waggon ??= 0;
+          a.mindestWaggon ??= 0;
+        });
         data.buchungen.forEach((b) => {
           b.artikelName ??= data.artikel.find((a) => a.id === b.artikelId)?.name ?? '';
         });
@@ -85,7 +100,7 @@ const localStore = {
       this.persist();
       return findArtikel(id);
     }
-    const a = { id: uid(), ...daten, bestand: 0, angelegt: new Date().toISOString() };
+    const a = { id: uid(), ...daten, bestand: 0, waggon: 0, angelegt: new Date().toISOString() };
     state.artikel.push(a);
     this.persist();
     return a;
@@ -96,9 +111,11 @@ const localStore = {
   },
   async buchen(artikelId, typ, menge, person, notiz) {
     const a = findArtikel(artikelId);
-    a.bestand = round(a.bestand + (typ === 'ein' ? menge : -menge));
+    a.bestand = round(a.bestand + WIRKUNG[typ].lager * menge);
+    a.waggon = round(a.waggon + WIRKUNG[typ].waggon * menge);
     state.buchungen.push({
-      id: uid(), artikelId, artikelName: a.name, typ, menge, bestandDanach: a.bestand,
+      id: uid(), artikelId, artikelName: a.name, typ, menge,
+      bestandDanach: a.bestand, waggonDanach: a.waggon,
       person, notiz, datum: new Date().toISOString(),
     });
     this.persist();
@@ -120,12 +137,18 @@ let sb = null; // Supabase-Client
 
 const mapArtikel = (r) => ({
   id: r.id, name: r.name, sorte: r.sorte ?? '', einheit: r.einheit, notiz: r.notiz,
-  mindest: Number(r.mindest), bestand: Number(r.bestand), angelegt: r.angelegt,
+  mindest: Number(r.mindest), bestand: Number(r.bestand),
+  mindestWaggon: Number(r.mindest_waggon ?? 0), waggon: Number(r.waggon ?? 0), angelegt: r.angelegt,
 });
 const mapBuchung = (r) => ({
   id: r.id, artikelId: r.artikel_id, artikelName: r.artikel_name, typ: r.typ,
   menge: Number(r.menge), bestandDanach: Number(r.bestand_danach),
+  waggonDanach: r.waggon_danach == null ? null : Number(r.waggon_danach),
   person: r.person, notiz: r.notiz, datum: r.datum,
+});
+const artikelZeile = (d) => ({
+  name: d.name, sorte: d.sorte, einheit: d.einheit, mindest: d.mindest,
+  mindest_waggon: d.mindestWaggon, notiz: d.notiz,
 });
 
 function dbFehler(error) {
@@ -157,8 +180,8 @@ const cloudStore = {
   },
   async artikelSpeichern(daten, id) {
     const q = id
-      ? sb.from('artikel').update(daten).eq('id', id)
-      : sb.from('artikel').insert(daten);
+      ? sb.from('artikel').update(artikelZeile(daten)).eq('id', id)
+      : sb.from('artikel').insert(artikelZeile(daten));
     const { data, error } = await q.select().single();
     dbFehler(error);
     await this.laden();
@@ -169,35 +192,36 @@ const cloudStore = {
     dbFehler(error);
     await this.laden();
   },
-  async buchen(artikelId, typ, menge, person, notiz) {
+  async buchen(artikelId, typ, menge, person, notiz, { neuLaden = true } = {}) {
     const { error } = await sb.rpc('buchen', {
       p_artikel: artikelId, p_typ: typ, p_menge: menge, p_person: person, p_notiz: notiz,
     });
     dbFehler(error);
-    await this.laden();
+    if (neuLaden) await this.laden();
   },
-  // Übernimmt Artikel und aktuelle Bestände aus einer Sicherung (z. B. aus dem lokalen Modus).
+  // Übernimmt Getränke und aktuelle Bestände aus einer Sicherung (z. B. aus dem lokalen Modus).
   // Der alte Buchungsverlauf wird dabei nicht übertragen.
   async importieren(data) {
     for (const a of data.artikel) {
-      const { data: neu, error } = await sb.from('artikel').insert({
+      const { data: neu, error } = await sb.from('artikel').insert(artikelZeile({
         name: a.name, sorte: a.sorte || '', einheit: a.einheit || 'Kiste',
-        mindest: Number(a.mindest) || 0, notiz: a.notiz || '',
-      }).select().single();
+        mindest: Number(a.mindest) || 0, mindestWaggon: Number(a.mindestWaggon) || 0, notiz: a.notiz || '',
+      })).select().single();
       dbFehler(error);
-      const bestand = Number(a.bestand) || 0;
-      if (bestand > 0) {
-        const r = await sb.rpc('buchen', {
-          p_artikel: neu.id, p_typ: 'ein', p_menge: bestand, p_person: '', p_notiz: 'Übernahme aus Sicherung',
-        });
-        dbFehler(r.error);
-      }
+      await anfangsbestandBuchen(neu.id, Number(a.bestand) || 0, Number(a.waggon) || 0, 'Übernahme aus Sicherung');
     }
     await this.laden();
   },
 };
 
 let store = localStore;
+
+// Startbestände: Lager per Lieferung, Waggon per Lieferung + Umlagerung (so bleibt der Verlauf lückenlos)
+async function anfangsbestandBuchen(id, lager, waggon, notiz) {
+  const opt = { neuLaden: false };
+  if (lager + waggon > 0) await store.buchen(id, 'ein', round(lager + waggon), '', notiz, opt);
+  if (waggon > 0) await store.buchen(id, 'aus', waggon, '', `${notiz} (Waggon)`, opt);
+}
 
 // ---------- Fachlogik ----------
 async function buchen(artikelId, typ, menge, person, notiz) {
@@ -208,20 +232,32 @@ async function buchen(artikelId, typ, menge, person, notiz) {
   if (typ === 'aus' && menge > a.bestand) {
     throw new Error(`So viel ist nicht im Lager – vorhanden: ${mengeText(a.bestand, a.einheit)}.`);
   }
-  const vorher = status(a);
+  if (typ === 'verkauf' && menge > a.waggon) {
+    throw new Error(`So viel ist nicht im Waggon – vorhanden: ${mengeText(a.waggon, a.einheit)}.`);
+  }
+  const vorher = { lager: statusLager(a), waggon: statusWaggon(a) };
   await store.buchen(artikelId, typ, menge, person.trim(), notiz.trim());
-  const nachher = findArtikel(artikelId);
-  if (nachher && status(nachher) === 'krit' && vorher !== 'krit') {
-    toast(`⚠️ ${a.name}: Mindestbestand erreicht – bitte nachbestellen!`, 5000);
+  const n = findArtikel(artikelId);
+  if (n && statusLager(n) === 'krit' && vorher.lager !== 'krit') {
+    toast(`⚠️ ${a.name}: Mindestbestand im Lager erreicht – bitte nachbestellen!`, 5000);
+  } else if (n && statusWaggon(n) === 'krit' && vorher.waggon !== 'krit') {
+    toast(`⚠️ ${a.name}: Waggon bitte auffüllen!`, 5000);
   } else {
-    toast(typ === 'ein'
-      ? `Lieferung gebucht: ${mengeText(menge, a.einheit)} ${a.name}`
-      : `In den Waggon: ${mengeText(menge, a.einheit)} ${a.name}`);
+    const m = `${mengeText(menge, a.einheit)} ${a.name}`;
+    toast({ ein: `Lieferung gebucht: ${m}`, aus: `In den Waggon gebracht: ${m}`, verkauf: `Verkauf gebucht: ${m}` }[typ]);
   }
 }
 
 // ---------- Ansichten ----------
 let aktiveAnsicht = 'bestand';
+
+// Bestand-Umschalter: Übersicht, Lager oder Waggon (wird im Browser gemerkt)
+const ORTE = ['uebersicht', 'lager', 'waggon'];
+let ort = 'uebersicht';
+try {
+  const gemerkt = localStorage.getItem('lager-bhf-staben-ansicht');
+  if (ORTE.includes(gemerkt)) ort = gemerkt;
+} catch { /* ohne Browser-Speicher: Übersicht */ }
 
 function zeigeAnsicht(name) {
   if (['bestand', 'verlauf', 'daten'].includes(name)) aktiveAnsicht = name;
@@ -237,52 +273,90 @@ function render() {
   renderDatalists();
 }
 
+const badge = (art, s) => `<span class="badge ${s}">${STATUS_LABEL[art][s]}</span>`;
+
+// Spalten je Ansicht: [Kopf, Zelle(a), Zahlenspalte?]
+const SPALTEN = {
+  lager: [
+    ['Im Lager', (a) => esc(mengeText(a.bestand, a.einheit)), true],
+    ['Mindest', (a) => fmt(a.mindest), true],
+    ['Status', (a) => badge('lager', statusLager(a))],
+  ],
+  waggon: [
+    ['Im Waggon', (a) => esc(mengeText(a.waggon, a.einheit)), true],
+    ['Mindest', (a) => fmt(a.mindestWaggon), true],
+    ['Status', (a) => badge('waggon', statusWaggon(a))],
+  ],
+  uebersicht: [
+    ['Lager', (a) => `${esc(mengeText(a.bestand, a.einheit))}${statusLager(a) === 'ok' ? '' : ` ${badge('lager', statusLager(a))}`}`, true],
+    ['Waggon', (a) => `${esc(mengeText(a.waggon, a.einheit))}${statusWaggon(a) === 'ok' ? '' : ` ${badge('waggon', statusWaggon(a))}`}`, true],
+    ['Gesamt', (a) => esc(mengeText(round(a.bestand + a.waggon), a.einheit)), true],
+  ],
+};
+const KNOEPFE = {
+  lager: (a) => `<button class="btn small in" data-buchen="${a.id}" data-typ="ein">+ Lieferung</button>
+        <button class="btn small move" data-buchen="${a.id}" data-typ="aus">→ Waggon</button>`,
+  waggon: (a) => `<button class="btn small move" data-buchen="${a.id}" data-typ="aus">+ Aus Lager</button>
+        <button class="btn small out" data-buchen="${a.id}" data-typ="verkauf">− Verkauft</button>`,
+  uebersicht: (a) => `<button class="btn small" data-buchen="${a.id}" data-typ="aus">Buchen</button>`,
+};
+const istKritisch = (a) => ({
+  lager: statusLager(a) === 'krit',
+  waggon: statusWaggon(a) === 'krit',
+  uebersicht: statusLager(a) === 'krit' || statusWaggon(a) === 'krit',
+}[ort]);
+
 function renderBestand() {
+  document.querySelectorAll('#ortWahl [data-ort]').forEach((b) => {
+    b.classList.toggle('active', b.dataset.ort === ort);
+    b.setAttribute('aria-pressed', b.dataset.ort === ort);
+  });
+  $('#nurKritischText').textContent = { uebersicht: 'nur mit Handlungsbedarf', lager: 'nur nachbestellen', waggon: 'nur auffüllen' }[ort];
+
+  const spalten = SPALTEN[ort];
+  $('#bestandKopf').innerHTML = `<tr><th>Getränk</th>${spalten.map(([kopf, , num]) => `<th class="${num ? 'num' : ''}">${kopf}</th>`).join('')}<th class="actions"></th></tr>`;
+
   const q = $('#suche').value.trim().toLowerCase();
   const nurKrit = $('#nurKritisch').checked;
   const liste = state.artikel
     .filter((a) => !q || [a.name, sorteName(a.sorte)].some((t) => (t || '').toLowerCase().includes(q)))
-    .filter((a) => !nurKrit || status(a) === 'krit');
+    .filter((a) => !nurKrit || istKritisch(a));
 
-  const zeile = (a) => {
-    const s = status(a);
-    return `<tr class="${s === 'krit' ? 'krit' : ''}">
+  const zeile = (a) => `<tr class="${istKritisch(a) ? 'krit' : ''}">
       <td data-k="name"><button class="name-link" data-edit="${a.id}" title="Bearbeiten">${esc(a.name)}</button>
         ${a.notiz ? `<span class="small-note">${esc(a.notiz)}</span>` : ''}</td>
-      <td data-k="bestand" class="num">${esc(mengeText(a.bestand, a.einheit))}</td>
-      <td data-k="mindest" class="num">${fmt(a.mindest)}</td>
-      <td data-k="status"><span class="badge ${s}">${STATUS_LABEL[s]}</span></td>
-      <td class="actions">
-        <button class="btn small in" data-buchen="${a.id}" data-typ="ein">+ Lieferung</button>
-        <button class="btn small out" data-buchen="${a.id}" data-typ="aus">→ Waggon</button>
-      </td>
+      ${spalten.map(([kopf, zelle, num]) => `<td class="${num ? 'num' : ''}" data-label="${kopf}">${zelle(a)}</td>`).join('')}
+      <td class="actions">${KNOEPFE[ort](a)}</td>
     </tr>`;
-  };
   // Nach Sorte gruppiert; unbekannte Sorten landen unter "Sonstiges"
   const gruppe = (a) => (SORTEN.includes(a.sorte || '') ? a.sorte || '' : '');
   $('#artikelListe').innerHTML = SORTEN.map((sorte) => {
     const inGruppe = liste.filter((a) => gruppe(a) === sorte).sort(byName);
     if (!inGruppe.length) return '';
-    return `<tr class="gruppe"><th colspan="5">${esc(sorteName(sorte))}</th></tr>` + inGruppe.map(zeile).join('');
+    return `<tr class="gruppe"><th colspan="${spalten.length + 2}">${esc(sorteName(sorte))}</th></tr>` + inGruppe.map(zeile).join('');
   }).join('');
 
   const leer = $('#leer');
   leer.hidden = liste.length > 0;
   leer.innerHTML = state.artikel.length
     ? 'Keine passenden Getränke gefunden.'
-    : `Noch keine Getränke im Lager.<br>
+    : `Noch keine Getränke angelegt.<br>
        <button class="btn primary" id="btnListe">Getränkeliste anlegen (${GETRAENKELISTE.length} Getränke)</button>
        <span class="small-note">Cola, Calypso, Eistee, Jambo, Holundersirup, Radler, Bier, alkoholfreies Bier,
-       Forst, Prosecco und Aperol – Bestand und Mindestbestand trägst du danach ein.</span>`;
+       Forst, Prosecco und Aperol – Bestände und Mindestbestände trägst du danach ein.</span>`;
 }
 
 function renderWarnungen() {
-  const krit = state.artikel.filter((a) => status(a) === 'krit').sort(byName);
+  const nachbestellen = ort !== 'waggon' ? state.artikel.filter((a) => statusLager(a) === 'krit').sort(byName) : [];
+  const auffuellen = ort !== 'lager' ? state.artikel.filter((a) => statusWaggon(a) === 'krit').sort(byName) : [];
   const box = $('#warnungen');
-  box.hidden = krit.length === 0;
-  if (!krit.length) return;
-  box.innerHTML = `<strong>⚠️ ${krit.length} ${krit.length === 1 ? 'Getränk' : 'Getränke'} im Lager am oder unter Mindestbestand – bitte nachbestellen:</strong>
-    <ul>${krit.map((a) => `<li>${esc(a.name)}: ${fmt(a.bestand)} von mind. ${esc(mengeText(a.mindest, a.einheit))}</li>`).join('')}</ul>`;
+  box.hidden = !nachbestellen.length && !auffuellen.length;
+  const teil = (liste, titel, menge, mindest) => (liste.length ? `<div class="warn-teil">
+      <strong>${titel} (${liste.length})</strong>
+      <ul>${liste.map((a) => `<li>${esc(a.name)}: ${fmt(menge(a))} von mind. ${esc(mengeText(mindest(a), a.einheit))}</li>`).join('')}</ul>
+    </div>` : '');
+  box.innerHTML = teil(nachbestellen, '⚠️ Lager: bitte nachbestellen', (a) => a.bestand, (a) => a.mindest)
+    + teil(auffuellen, '⚠️ Waggon: bitte auffüllen', (a) => a.waggon, (a) => a.mindestWaggon);
 }
 
 function renderVerlauf() {
@@ -301,12 +375,14 @@ function renderVerlauf() {
   $('#verlaufListe').innerHTML = liste.map((b) => {
     const a = findArtikel(b.artikelId);
     const name = a ? esc(a.name) : `${esc(b.artikelName)} <em>(gelöscht)</em>`;
+    const vorz = { ein: '+', aus: '', verkauf: '−' }[b.typ] ?? '';
+    const danach = `Lager ${fmt(b.bestandDanach)}${b.waggonDanach == null ? '' : ` · Waggon ${fmt(b.waggonDanach)}`}`;
     return `<tr>
       <td>${fmtDate(b.datum)}</td>
       <td>${name}</td>
-      <td class="typ-${b.typ}">${TYP_LABEL[b.typ]}</td>
-      <td class="num">${b.typ === 'ein' ? '+' : '−'}${esc(mengeText(b.menge, a ? a.einheit : ''))}</td>
-      <td class="num">${fmt(b.bestandDanach)}</td>
+      <td class="typ-${b.typ}">${TYP_LABEL[b.typ] ?? esc(b.typ)}</td>
+      <td class="num">${vorz}${esc(mengeText(b.menge, a ? a.einheit : ''))}</td>
+      <td class="num">${danach}</td>
       <td>${esc(b.person || '–')}</td>
       <td>${esc(b.notiz || '')}</td>
     </tr>`;
@@ -373,10 +449,11 @@ async function ausfuehren(form, fehlerEl, aktion) {
 
 document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('dialog').close()));
 
-// ---------- Artikel-Dialog ----------
+// ---------- Getränk-Dialog ----------
 const dlgArtikel = $('#dlgArtikel');
 const formArtikel = $('#formArtikel');
 let editId = null;
+const zahl = (feld) => Math.max(0, round(Number(feld.value) || 0));
 
 function openArtikel(id = null) {
   editId = id;
@@ -392,6 +469,7 @@ function openArtikel(id = null) {
     f.sorte.value = SORTEN.includes(a.sorte || '') ? a.sorte || '' : '';
     f.einheit.value = a.einheit;
     f.mindest.value = a.mindest;
+    f.mindestWaggon.value = a.mindestWaggon;
     f.notiz.value = a.notiz;
   }
   dlgArtikel.showModal();
@@ -404,7 +482,8 @@ formArtikel.addEventListener('submit', async (e) => {
     name: f.name.value.trim(),
     sorte: f.sorte.value,
     einheit: f.einheit.value.trim() || 'Kiste',
-    mindest: Math.max(0, round(Number(f.mindest.value) || 0)),
+    mindest: zahl(f.mindest),
+    mindestWaggon: zahl(f.mindestWaggon),
     notiz: f.notiz.value.trim(),
   };
   if (!daten.name) return;
@@ -413,10 +492,14 @@ formArtikel.addEventListener('submit', async (e) => {
   if (doppelt && !(await frage('Getränk doppelt?', `„${daten.name}“ gibt es schon. Trotzdem speichern?`, { ok: 'Trotzdem speichern' }))) return;
 
   const id = editId;
-  const anfang = round(Number(f.anfang.value) || 0);
+  const anfangLager = zahl(f.anfang);
+  const anfangWaggon = zahl(f.anfangWaggon);
   ausfuehren(formArtikel, $('#artikelFehler'), async () => {
     const a = await store.artikelSpeichern(daten, id);
-    if (!id && anfang > 0) await store.buchen(a.id, 'ein', anfang, '', 'Anfangsbestand');
+    if (!id) {
+      await anfangsbestandBuchen(a.id, anfangLager, anfangWaggon, 'Anfangsbestand');
+      if (store.cloud) await store.laden();
+    }
     toast(id ? 'Getränk gespeichert' : `„${a.name}“ angelegt`);
   });
 });
@@ -436,13 +519,22 @@ const formBuchung = $('#formBuchung');
 let buchungId = null;
 let letztePerson = '';
 
+const BUCHUNG_TITEL = {
+  ein: 'Lieferung ins Lager',
+  aus: 'Waggon aus dem Lager auffüllen',
+  verkauf: 'Verkauf im Waggon',
+};
+
 function updateBuchungInfo() {
   const a = findArtikel(buchungId);
   if (!a) return;
   const typ = formBuchung.elements.typ.value;
-  $('#dlgBuchungTitel').textContent = typ === 'ein' ? 'Lieferung ins Lager buchen' : 'Waggon auffüllen';
-  $('#dlgBuchungInfo').textContent = `${a.name} · im Lager: ${mengeText(a.bestand, a.einheit)}`
-    + (a.mindest > 0 ? ` · Mindestbestand ${fmt(a.mindest)}` : '');
+  $('#dlgBuchungTitel').textContent = BUCHUNG_TITEL[typ];
+  $('#dlgBuchungInfo').innerHTML = `<strong>${esc(a.name)}</strong> · Lager: ${esc(mengeText(a.bestand, a.einheit))}`
+    + ` · Waggon: ${esc(mengeText(a.waggon, a.einheit))}`;
+  // Beim Verkauf alternativ den gezählten Rest im Waggon eingeben
+  $('#zaehlenBox').hidden = typ !== 'verkauf';
+  formBuchung.elements.gezaehlt.max = a.waggon;
 }
 
 function openBuchung(id, typ) {
@@ -458,6 +550,14 @@ function openBuchung(id, typ) {
 
 formBuchung.addEventListener('change', (e) => {
   if (e.target.name === 'typ') updateBuchungInfo();
+});
+
+// "Noch im Waggon gezählt" → verkaufte Menge = bisher im Waggon − gezählt
+formBuchung.elements.gezaehlt.addEventListener('input', (e) => {
+  const a = findArtikel(buchungId);
+  if (!a || e.target.value === '') return;
+  const verkauft = round(a.waggon - Number(e.target.value));
+  formBuchung.elements.menge.value = verkauft > 0 ? verkauft : '';
 });
 
 formBuchung.addEventListener('submit', (e) => {
@@ -486,9 +586,12 @@ $('#btnExport').addEventListener('click', () => {
 
 $('#btnCsv').addEventListener('click', () => {
   const zelle = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const zeilen = [['Getränk', 'Sorte', 'Im Lager', 'Einheit', 'Mindestbestand', 'Status', 'Notiz']]
+  const zeilen = [['Getränk', 'Sorte', 'Lager', 'Waggon', 'Gesamt', 'Einheit', 'Mindest Lager', 'Mindest Waggon',
+    'Status Lager', 'Status Waggon', 'Notiz']]
     .concat([...state.artikel].sort(byName).map((a) => [
-      a.name, sorteName(a.sorte), fmt(a.bestand), a.einheit, fmt(a.mindest), STATUS_LABEL[status(a)], a.notiz,
+      a.name, sorteName(a.sorte), fmt(a.bestand), fmt(a.waggon), fmt(round(a.bestand + a.waggon)), a.einheit,
+      fmt(a.mindest), fmt(a.mindestWaggon),
+      STATUS_LABEL.lager[statusLager(a)], STATUS_LABEL.waggon[statusWaggon(a)], a.notiz,
     ]));
   // BOM + Semikolon, damit Excel (deutsch) die Datei direkt richtig öffnet
   download(`bestand-bhf-staben-${heute()}.csv`,
@@ -534,6 +637,15 @@ $('#btnReset').addEventListener('click', async () => {
 // ---------- Allgemeine Events ----------
 document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => zeigeAnsicht(tab.dataset.view)));
 
+$('#ortWahl').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-ort]');
+  if (!b) return;
+  ort = b.dataset.ort;
+  try { localStorage.setItem('lager-bhf-staben-ansicht', ort); } catch { /* egal */ }
+  renderBestand();
+  renderWarnungen();
+});
+
 $('#btnNeu').addEventListener('click', () => openArtikel());
 $('#suche').addEventListener('input', renderBestand);
 $('#nurKritisch').addEventListener('change', renderBestand);
@@ -548,7 +660,7 @@ $('#leer').addEventListener('click', async (e) => {
     const vorhanden = new Set(state.artikel.map((a) => a.name.toLowerCase()));
     for (const [name, sorte, einheit] of GETRAENKELISTE) {
       if (vorhanden.has(name.toLowerCase())) continue;
-      await store.artikelSpeichern({ name, sorte, einheit, mindest: 0, notiz: '' });
+      await store.artikelSpeichern({ name, sorte, einheit, mindest: 0, mindestWaggon: 0, notiz: '' });
     }
     render();
     toast('Getränkeliste angelegt – jetzt Bestände einbuchen und Mindestbestände eintragen');
@@ -655,26 +767,26 @@ $('#btnLogout').addEventListener('click', () => sb.auth.signOut());
 
 // Nur für die Testversion (CFG.demo): Getränkeliste mit Beispielzahlen und etwas Verlauf
 async function beispielDatenAnlegen() {
-  // [Mindestbestand, Anfangsbestand, Buchungen]
-  const W = 'Waggon aufgefüllt';
+  // [Mindest Lager, Mindest Waggon, Lieferung, ins Waggon gebracht, im Waggon verkauft]
   const beispiel = {
-    Cola: [5, 12, [['aus', 4, W]]],
-    Calypso: [4, 6, [['aus', 3, W]]],
-    Eistee: [4, 9, [['aus', 2, W]]],
-    Jambo: [3, 5, [['aus', 2, W]]],
-    Holundersirup: [3, 8, []],
-    'Hacker-Pschorr Radler': [4, 10, [['aus', 3, W]]],
-    Bier: [6, 15, [['aus', 5, 'Waggon aufgefüllt (Sommerfest)'], ['ein', 6, 'Getränkehandel']]],
-    'Alkoholfreies Bier': [3, 4, []],
-    Forst: [5, 12, [['aus', 4, W]]],
-    Prosecco: [6, 12, [['aus', 6, 'Waggon aufgefüllt (Hochzeitsfahrt)']]],
-    Aperol: [2, 4, []],
+    Cola: [5, 2, 16, 6, 2],
+    Calypso: [4, 2, 10, 5, 4],
+    Eistee: [4, 2, 12, 4, 1],
+    Jambo: [3, 1, 6, 3, 1],
+    Holundersirup: [3, 1, 8, 3, 1],
+    'Hacker-Pschorr Radler': [4, 2, 12, 5, 2],
+    Bier: [6, 3, 20, 8, 6],
+    'Alkoholfreies Bier': [3, 1, 6, 2, 0],
+    Forst: [5, 2, 15, 6, 2],
+    Prosecco: [6, 2, 14, 8, 4],
+    Aperol: [2, 1, 5, 2, 0],
   };
   for (const [name, sorte, einheit] of GETRAENKELISTE) {
-    const [mindest, anfang, buchungen] = beispiel[name];
-    const a = await store.artikelSpeichern({ name, sorte, einheit, mindest, notiz: '' });
-    await store.buchen(a.id, 'ein', anfang, '', 'Anfangsbestand');
-    for (const [typ, menge, notiz] of buchungen) await store.buchen(a.id, typ, menge, 'Beispiel', notiz);
+    const [mindest, mindestWaggon, lieferung, inWaggon, verkauft] = beispiel[name];
+    const a = await store.artikelSpeichern({ name, sorte, einheit, mindest, mindestWaggon, notiz: '' });
+    await store.buchen(a.id, 'ein', lieferung, '', 'Lieferung Getränkehandel');
+    await store.buchen(a.id, 'aus', inWaggon, 'Beispiel', 'Waggon aufgefüllt');
+    if (verkauft) await store.buchen(a.id, 'verkauf', verkauft, 'Beispiel', 'Abrechnung Sonntag');
   }
 }
 
@@ -684,8 +796,15 @@ async function start() {
     if (CFG.demo) {
       $('#lokalHinweis').innerHTML = '<strong>Testversion:</strong> Bestände und Buchungen sind Beispielzahlen. '
         + 'Alles, was du hier änderst, bleibt nur in deinem Browser.';
+      // Beispieldaten neu anlegen, wenn leer oder von einer älteren Testversion
+      const DEMO_VERSION = 2;
       await store.laden();
-      if (!state.artikel.length) await beispielDatenAnlegen();
+      if (!state.artikel.length || state.demoVersion !== DEMO_VERSION) {
+        state = { artikel: [], buchungen: [] };
+        await beispielDatenAnlegen();
+        state.demoVersion = DEMO_VERSION;
+        localStore.persist();
+      }
     }
     $('#datenText').textContent = 'Die Daten werden in diesem Browser gespeichert. Erstelle regelmäßig eine '
       + 'Sicherung – damit kannst du die Daten auch auf ein anderes Gerät oder in die gemeinsame Datenbank übertragen.';

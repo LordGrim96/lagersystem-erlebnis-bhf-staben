@@ -7,13 +7,17 @@ Läuft im Browser auf PC, Tablet und Handy – ohne Installation.
 ## Funktionen
 
 - **Getränke** anlegen und bearbeiten (Bezeichnung, Sorte, Einheit wie Kiste/Flasche/Fass, Mindestbestand, Notiz)
-- **Ein Lager, ein Waggon**: Lieferungen werden ins Lager gebucht, beim Auffüllen des Waggons wird aus dem Lager ausgebucht
+- **Lager und Waggon getrennt**: Umschalter zwischen *Übersicht* (beide Bestände + Summe), *Lager* und *Waggon*
+  - **Lieferung** → ins Lager, **Lager → Waggon** beim Auffüllen, **Verkauft** → aus dem Waggon
+  - Verkauf auch per Zählen: eingeben, was noch im Waggon steht – die verkaufte Menge wird ausgerechnet
+  - Eigene Mindestbestände und Warnungen: „nachbestellen“ (Lager) und „auffüllen“ (Waggon)
+- **Gestaltung im Stil des Bahnhofsplakats** (Papier, Druckfarbe, Bordeaux, Stempel), mit dunkler Variante
 - **Getränkeliste mit einem Klick**: bei leerem Lager legt ein Button alle Getränke des Bahnhofs an
 - Anzeige **nach Sorten gruppiert**: Alkoholfrei, Bier & Radler, Wein & Prosecco, Spirituosen
-- **Lieferung** bzw. **→ Waggon** buchen mit Menge, Person und Notiz – es kann nicht mehr in den Waggon gebucht werden, als im Lager ist
-- **Verlauf** aller Buchungen, filterbar nach Getränk und Lieferung/Waggon
+- Buchungen mit Menge, Person und Notiz – es kann nie mehr umgebucht oder verkauft werden, als vorhanden ist
+- **Verlauf** aller Buchungen, filterbar nach Getränk und Buchungsart
 - **Mindestbestand-Warnung**: Getränke am oder unter Mindestbestand werden oben hervorgehoben
-  („nachbestellen“), bis 25 % darüber als „knapp“ markiert
+  („nachbestellen“/„auffüllen“), bis 25 % darüber als „knapp“ markiert
 - **Gemeinsame Datenbank** (optional, Supabase): alle Geräte sehen dieselben Daten, Änderungen
   erscheinen live; Zugang nur mit Anmeldung
 - **Datensicherung** als JSON und Bestandsliste als CSV für Excel
