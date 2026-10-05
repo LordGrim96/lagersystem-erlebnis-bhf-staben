@@ -6,11 +6,12 @@ Läuft im Browser auf PC, Tablet und Handy – ohne Installation.
 
 ## Funktionen
 
-- **Getränke** anlegen und bearbeiten (Bezeichnung, Sorte, Lagerort, Einheit wie Kiste/Flasche/Fass, Mindestbestand, Notiz)
+- **Getränke** anlegen und bearbeiten (Bezeichnung, Sorte, Einheit wie Kiste/Flasche/Fass, Mindestbestand, Notiz)
+- **Ein Lager, ein Waggon**: Lieferungen werden ins Lager gebucht, beim Auffüllen des Waggons wird aus dem Lager ausgebucht
 - **Getränkeliste mit einem Klick**: bei leerem Lager legt ein Button alle Getränke des Bahnhofs an
 - Anzeige **nach Sorten gruppiert**: Alkoholfrei, Bier & Radler, Wein & Prosecco, Spirituosen
-- **Ein- und Ausbuchen** mit Menge, Person und Notiz – Ausgänge über den Bestand hinaus werden verhindert
-- **Verlauf** aller Buchungen, filterbar nach Getränk und Ein-/Ausgang
+- **Lieferung** bzw. **→ Waggon** buchen mit Menge, Person und Notiz – es kann nicht mehr in den Waggon gebucht werden, als im Lager ist
+- **Verlauf** aller Buchungen, filterbar nach Getränk und Lieferung/Waggon
 - **Mindestbestand-Warnung**: Getränke am oder unter Mindestbestand werden oben hervorgehoben
   („nachbestellen“), bis 25 % darüber als „knapp“ markiert
 - **Gemeinsame Datenbank** (optional, Supabase): alle Geräte sehen dieselben Daten, Änderungen

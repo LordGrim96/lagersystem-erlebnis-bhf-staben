@@ -26,6 +26,9 @@ function status(a) {
 const PLURAL = { Kiste: 'Kisten', Flasche: 'Flaschen', Dose: 'Dosen', Fass: 'Fässer', Karton: 'Kartons' };
 const mengeText = (n, einheit = '') => `${fmt(n)} ${Number(n) === 1 ? einheit : PLURAL[einheit] ?? einheit}`.trim();
 
+// Wording der beiden Buchungsarten: Lieferung ins Lager, Entnahme zum Auffüllen des Waggons
+const TYP_LABEL = { ein: 'Lieferung', aus: '→ Waggon' };
+
 const STATUS_LABEL = { ok: 'OK', warn: 'knapp', krit: 'nachbestellen' };
 
 // Sorten in Anzeige-Reihenfolge ('' = Sonstiges)
@@ -116,7 +119,7 @@ const CFG = window.LAGER_CONFIG || {};
 let sb = null; // Supabase-Client
 
 const mapArtikel = (r) => ({
-  id: r.id, name: r.name, sorte: r.sorte ?? '', ort: r.ort, einheit: r.einheit, notiz: r.notiz,
+  id: r.id, name: r.name, sorte: r.sorte ?? '', einheit: r.einheit, notiz: r.notiz,
   mindest: Number(r.mindest), bestand: Number(r.bestand), angelegt: r.angelegt,
 });
 const mapBuchung = (r) => ({
@@ -178,7 +181,7 @@ const cloudStore = {
   async importieren(data) {
     for (const a of data.artikel) {
       const { data: neu, error } = await sb.from('artikel').insert({
-        name: a.name, sorte: a.sorte || '', ort: a.ort || '', einheit: a.einheit || 'Kiste',
+        name: a.name, sorte: a.sorte || '', einheit: a.einheit || 'Kiste',
         mindest: Number(a.mindest) || 0, notiz: a.notiz || '',
       }).select().single();
       dbFehler(error);
@@ -203,7 +206,7 @@ async function buchen(artikelId, typ, menge, person, notiz) {
   menge = round(Number(menge));
   if (!(menge > 0)) throw new Error('Bitte eine Menge größer 0 eingeben.');
   if (typ === 'aus' && menge > a.bestand) {
-    throw new Error(`Nicht genug auf Lager – verfügbar: ${mengeText(a.bestand, a.einheit)}.`);
+    throw new Error(`So viel ist nicht im Lager – vorhanden: ${mengeText(a.bestand, a.einheit)}.`);
   }
   const vorher = status(a);
   await store.buchen(artikelId, typ, menge, person.trim(), notiz.trim());
@@ -211,7 +214,9 @@ async function buchen(artikelId, typ, menge, person, notiz) {
   if (nachher && status(nachher) === 'krit' && vorher !== 'krit') {
     toast(`⚠️ ${a.name}: Mindestbestand erreicht – bitte nachbestellen!`, 5000);
   } else {
-    toast(`${typ === 'ein' ? 'Eingang' : 'Ausgang'} gebucht: ${mengeText(menge, a.einheit)} ${a.name}`);
+    toast(typ === 'ein'
+      ? `Lieferung gebucht: ${mengeText(menge, a.einheit)} ${a.name}`
+      : `In den Waggon: ${mengeText(menge, a.einheit)} ${a.name}`);
   }
 }
 
@@ -236,7 +241,7 @@ function renderBestand() {
   const q = $('#suche').value.trim().toLowerCase();
   const nurKrit = $('#nurKritisch').checked;
   const liste = state.artikel
-    .filter((a) => !q || [a.name, a.ort, sorteName(a.sorte)].some((t) => (t || '').toLowerCase().includes(q)))
+    .filter((a) => !q || [a.name, sorteName(a.sorte)].some((t) => (t || '').toLowerCase().includes(q)))
     .filter((a) => !nurKrit || status(a) === 'krit');
 
   const zeile = (a) => {
@@ -244,13 +249,12 @@ function renderBestand() {
     return `<tr class="${s === 'krit' ? 'krit' : ''}">
       <td data-k="name"><button class="name-link" data-edit="${a.id}" title="Bearbeiten">${esc(a.name)}</button>
         ${a.notiz ? `<span class="small-note">${esc(a.notiz)}</span>` : ''}</td>
-      <td data-k="ort">${esc(a.ort || '–')}</td>
       <td data-k="bestand" class="num">${esc(mengeText(a.bestand, a.einheit))}</td>
       <td data-k="mindest" class="num">${fmt(a.mindest)}</td>
       <td data-k="status"><span class="badge ${s}">${STATUS_LABEL[s]}</span></td>
       <td class="actions">
-        <button class="btn small in" data-buchen="${a.id}" data-typ="ein">+ Eingang</button>
-        <button class="btn small out" data-buchen="${a.id}" data-typ="aus">− Ausgang</button>
+        <button class="btn small in" data-buchen="${a.id}" data-typ="ein">+ Lieferung</button>
+        <button class="btn small out" data-buchen="${a.id}" data-typ="aus">→ Waggon</button>
       </td>
     </tr>`;
   };
@@ -259,7 +263,7 @@ function renderBestand() {
   $('#artikelListe').innerHTML = SORTEN.map((sorte) => {
     const inGruppe = liste.filter((a) => gruppe(a) === sorte).sort(byName);
     if (!inGruppe.length) return '';
-    return `<tr class="gruppe"><th colspan="6">${esc(sorteName(sorte))}</th></tr>` + inGruppe.map(zeile).join('');
+    return `<tr class="gruppe"><th colspan="5">${esc(sorteName(sorte))}</th></tr>` + inGruppe.map(zeile).join('');
   }).join('');
 
   const leer = $('#leer');
@@ -277,8 +281,8 @@ function renderWarnungen() {
   const box = $('#warnungen');
   box.hidden = krit.length === 0;
   if (!krit.length) return;
-  box.innerHTML = `<strong>⚠️ ${krit.length} ${krit.length === 1 ? 'Getränk' : 'Getränke'} am oder unter Mindestbestand – bitte nachbestellen:</strong>
-    <ul>${krit.map((a) => `<li>${esc(a.name)}${a.ort ? ` (${esc(a.ort)})` : ''}: ${fmt(a.bestand)} von mind. ${esc(mengeText(a.mindest, a.einheit))}</li>`).join('')}</ul>`;
+  box.innerHTML = `<strong>⚠️ ${krit.length} ${krit.length === 1 ? 'Getränk' : 'Getränke'} im Lager am oder unter Mindestbestand – bitte nachbestellen:</strong>
+    <ul>${krit.map((a) => `<li>${esc(a.name)}: ${fmt(a.bestand)} von mind. ${esc(mengeText(a.mindest, a.einheit))}</li>`).join('')}</ul>`;
 }
 
 function renderVerlauf() {
@@ -300,7 +304,7 @@ function renderVerlauf() {
     return `<tr>
       <td>${fmtDate(b.datum)}</td>
       <td>${name}</td>
-      <td class="typ-${b.typ}">${b.typ === 'ein' ? 'Eingang' : 'Ausgang'}</td>
+      <td class="typ-${b.typ}">${TYP_LABEL[b.typ]}</td>
       <td class="num">${b.typ === 'ein' ? '+' : '−'}${esc(mengeText(b.menge, a ? a.einheit : ''))}</td>
       <td class="num">${fmt(b.bestandDanach)}</td>
       <td>${esc(b.person || '–')}</td>
@@ -312,8 +316,6 @@ function renderVerlauf() {
 
 function renderDatalists() {
   const uniq = (arr) => [...new Set(arr.filter(Boolean))].sort((x, y) => x.localeCompare(y, 'de'));
-  $('#orteListe').innerHTML = uniq(state.artikel.map((a) => a.ort))
-    .map((o) => `<option value="${esc(o)}">`).join('');
   $('#personenListe').innerHTML = uniq(state.buchungen.map((b) => b.person))
     .map((p) => `<option value="${esc(p)}">`).join('');
 }
@@ -388,7 +390,6 @@ function openArtikel(id = null) {
     const f = formArtikel.elements;
     f.name.value = a.name;
     f.sorte.value = SORTEN.includes(a.sorte || '') ? a.sorte || '' : '';
-    f.ort.value = a.ort;
     f.einheit.value = a.einheit;
     f.mindest.value = a.mindest;
     f.notiz.value = a.notiz;
@@ -402,16 +403,14 @@ formArtikel.addEventListener('submit', async (e) => {
   const daten = {
     name: f.name.value.trim(),
     sorte: f.sorte.value,
-    ort: f.ort.value.trim(),
     einheit: f.einheit.value.trim() || 'Kiste',
     mindest: Math.max(0, round(Number(f.mindest.value) || 0)),
     notiz: f.notiz.value.trim(),
   };
   if (!daten.name) return;
   const doppelt = state.artikel.find((a) => a.id !== editId
-    && a.name.toLowerCase() === daten.name.toLowerCase()
-    && (a.ort || '').toLowerCase() === daten.ort.toLowerCase());
-  if (doppelt && !(await frage('Getränk doppelt?', `„${daten.name}“ gibt es an diesem Lagerort schon. Trotzdem speichern?`, { ok: 'Trotzdem speichern' }))) return;
+    && a.name.toLowerCase() === daten.name.toLowerCase());
+  if (doppelt && !(await frage('Getränk doppelt?', `„${daten.name}“ gibt es schon. Trotzdem speichern?`, { ok: 'Trotzdem speichern' }))) return;
 
   const id = editId;
   const anfang = round(Number(f.anfang.value) || 0);
@@ -441,8 +440,8 @@ function updateBuchungInfo() {
   const a = findArtikel(buchungId);
   if (!a) return;
   const typ = formBuchung.elements.typ.value;
-  $('#dlgBuchungTitel').textContent = `${typ === 'ein' ? 'Eingang' : 'Ausgang'} buchen`;
-  $('#dlgBuchungInfo').textContent = `${a.name} · aktuell ${mengeText(a.bestand, a.einheit)}`
+  $('#dlgBuchungTitel').textContent = typ === 'ein' ? 'Lieferung ins Lager buchen' : 'Waggon auffüllen';
+  $('#dlgBuchungInfo').textContent = `${a.name} · im Lager: ${mengeText(a.bestand, a.einheit)}`
     + (a.mindest > 0 ? ` · Mindestbestand ${fmt(a.mindest)}` : '');
 }
 
@@ -487,9 +486,9 @@ $('#btnExport').addEventListener('click', () => {
 
 $('#btnCsv').addEventListener('click', () => {
   const zelle = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const zeilen = [['Getränk', 'Sorte', 'Lagerort', 'Bestand', 'Einheit', 'Mindestbestand', 'Status', 'Notiz']]
+  const zeilen = [['Getränk', 'Sorte', 'Im Lager', 'Einheit', 'Mindestbestand', 'Status', 'Notiz']]
     .concat([...state.artikel].sort(byName).map((a) => [
-      a.name, sorteName(a.sorte), a.ort, fmt(a.bestand), a.einheit, fmt(a.mindest), STATUS_LABEL[status(a)], a.notiz,
+      a.name, sorteName(a.sorte), fmt(a.bestand), a.einheit, fmt(a.mindest), STATUS_LABEL[status(a)], a.notiz,
     ]));
   // BOM + Semikolon, damit Excel (deutsch) die Datei direkt richtig öffnet
   download(`bestand-bhf-staben-${heute()}.csv`,
@@ -549,7 +548,7 @@ $('#leer').addEventListener('click', async (e) => {
     const vorhanden = new Set(state.artikel.map((a) => a.name.toLowerCase()));
     for (const [name, sorte, einheit] of GETRAENKELISTE) {
       if (vorhanden.has(name.toLowerCase())) continue;
-      await store.artikelSpeichern({ name, sorte, ort: '', einheit, mindest: 0, notiz: '' });
+      await store.artikelSpeichern({ name, sorte, einheit, mindest: 0, notiz: '' });
     }
     render();
     toast('Getränkeliste angelegt – jetzt Bestände einbuchen und Mindestbestände eintragen');
@@ -656,23 +655,24 @@ $('#btnLogout').addEventListener('click', () => sb.auth.signOut());
 
 // Nur für die Testversion (CFG.demo): Getränkeliste mit Beispielzahlen und etwas Verlauf
 async function beispielDatenAnlegen() {
-  // [Lagerort, Mindestbestand, Anfangsbestand, Buchungen]
+  // [Mindestbestand, Anfangsbestand, Buchungen]
+  const W = 'Waggon aufgefüllt';
   const beispiel = {
-    Cola: ['Kühlraum', 5, 12, [['aus', 4, 'Kiosk aufgefüllt']]],
-    Calypso: ['Kühlraum', 4, 6, [['aus', 3, 'Sommerfest']]],
-    Eistee: ['Kühlraum', 4, 9, []],
-    Jambo: ['Kühlraum', 3, 5, [['aus', 2, 'Kiosk aufgefüllt']]],
-    Holundersirup: ['Kiosk', 3, 8, []],
-    'Hacker-Pschorr Radler': ['Keller', 4, 10, [['aus', 3, 'Draisinen-Gruppe']]],
-    Bier: ['Keller', 6, 15, [['aus', 5, 'Sommerfest'], ['ein', 6, 'Lieferung Getränkehandel']]],
-    'Alkoholfreies Bier': ['Keller', 3, 4, []],
-    Forst: ['Keller', 5, 12, [['aus', 4, 'Vereinsabend']]],
-    Prosecco: ['Kiosk', 6, 12, [['aus', 6, 'Hochzeitsfahrt']]],
-    Aperol: ['Kiosk', 2, 4, []],
+    Cola: [5, 12, [['aus', 4, W]]],
+    Calypso: [4, 6, [['aus', 3, W]]],
+    Eistee: [4, 9, [['aus', 2, W]]],
+    Jambo: [3, 5, [['aus', 2, W]]],
+    Holundersirup: [3, 8, []],
+    'Hacker-Pschorr Radler': [4, 10, [['aus', 3, W]]],
+    Bier: [6, 15, [['aus', 5, 'Waggon aufgefüllt (Sommerfest)'], ['ein', 6, 'Getränkehandel']]],
+    'Alkoholfreies Bier': [3, 4, []],
+    Forst: [5, 12, [['aus', 4, W]]],
+    Prosecco: [6, 12, [['aus', 6, 'Waggon aufgefüllt (Hochzeitsfahrt)']]],
+    Aperol: [2, 4, []],
   };
   for (const [name, sorte, einheit] of GETRAENKELISTE) {
-    const [ort, mindest, anfang, buchungen] = beispiel[name];
-    const a = await store.artikelSpeichern({ name, sorte, ort, einheit, mindest, notiz: '' });
+    const [mindest, anfang, buchungen] = beispiel[name];
+    const a = await store.artikelSpeichern({ name, sorte, einheit, mindest, notiz: '' });
     await store.buchen(a.id, 'ein', anfang, '', 'Anfangsbestand');
     for (const [typ, menge, notiz] of buchungen) await store.buchen(a.id, typ, menge, 'Beispiel', notiz);
   }
