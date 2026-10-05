@@ -8,10 +8,14 @@ Läuft im Browser auf PC, Tablet und Handy – ohne Installation.
 
 - **Getränke** anlegen und bearbeiten (Bezeichnung, Sorte, Einzelstück wie Flasche/Dose, Stück pro Kiste, Mindestbestände, Notiz)
 - **Gezählt wird in Einzelstücken.** Kisten sind nur Eingabehilfe bei Lieferungen (2 Kisten à 24 = 48 Flaschen) und Orientierung im Lager
-- **Lager und Waggon getrennt**: Umschalter zwischen *Übersicht* (beide Bestände + Summe), *Lager* und *Waggon*
-  - **Lieferung** → ins Lager, **Lager → Waggon** beim Auffüllen, **Verkauft** → aus dem Waggon
-  - Verkauf auch per Zählen: eingeben, was noch im Waggon steht – die verkaufte Menge wird ausgerechnet
-  - Eigene Mindestbestände und Warnungen: „nachbestellen“ (Lager) und „auffüllen“ (Waggon)
+- **Lager und Waggon getrennt**: Umschalter zwischen *Übersicht*, *Lager* und *Waggon*
+  - **Waggon zählen**: pro Getränk nur eingeben, wie viel noch da ist → die App zeigt sofort, wie viel
+    bis zur Mindeststückzahl **nachgefüllt** werden muss (die Differenz wird als Verkauf gebucht)
+  - **Lager**: zeigt pro Getränk „Zum Waggon bringen“ – mit „✓ Gebracht“ bzw. „Alles zum Waggon gebracht“
+    wird umgebucht; **Lieferungen** auch in Kisten eingebbar
+  - Warnung „nachbestellen“, wenn das Lager seine Mindeststückzahl erreicht
+- **Einstellungen**: Mindeststückzahl im Waggon, Mindeststückzahl im Lager und Stück pro Kiste für alle
+  Getränke jederzeit auf einer Seite ändern
 - **Gestaltung im Stil des Bahnhofsplakats** (Papier, Druckfarbe, Bordeaux, Stempel), mit dunkler Variante
 - **Getränkeliste mit einem Klick**: bei leerem Lager legt ein Button alle Getränke des Bahnhofs an
 - Anzeige **nach Sorten gruppiert**: Alkoholfrei, Bier & Radler, Wein & Prosecco, Spirituosen

@@ -25,6 +25,7 @@
     <nav class="tabs" role="tablist" id="tabs">
       <button class="tab active" data-view="bestand" role="tab">Bestand</button>
       <button class="tab" data-view="verlauf" role="tab">Verlauf</button>
+      <button class="tab" data-view="einstellungen" role="tab">Einstellungen</button>
       <button class="tab" data-view="daten" role="tab">Daten</button>
     </nav>
   </header>
@@ -59,8 +60,8 @@
       </div>
       <div id="ortWahl" class="ort-wahl" role="group" aria-label="Ansicht wählen">
         <button type="button" data-ort="uebersicht" aria-pressed="true">Übersicht<small>Lager + Waggon</small></button>
-        <button type="button" data-ort="lager" aria-pressed="false">Lager<small>Lieferungen</small></button>
-        <button type="button" data-ort="waggon" aria-pressed="false">Waggon<small>Auffüllen &amp; Verkauf</small></button>
+        <button type="button" data-ort="lager" aria-pressed="false">Lager<small>Liefern &amp; Bringen</small></button>
+        <button type="button" data-ort="waggon" aria-pressed="false">Waggon<small>Zählen</small></button>
       </div>
 
       <div id="warnungen" class="warn-box" hidden></div>
@@ -77,6 +78,43 @@
           <tbody id="artikelListe"></tbody>
         </table>
         <p id="leer" class="empty" hidden></p>
+      </div>
+
+      <div id="zaehlLeiste" class="aktion-leiste" hidden>
+        <p>Trag ein, <strong>wie viel noch im Waggon ist</strong>. Graue Zahl = letzter Stand, leere Felder bleiben unverändert.</p>
+        <button id="btnZaehlung" class="btn primary" disabled>Zählung speichern</button>
+      </div>
+      <div id="bringenLeiste" class="aktion-leiste" hidden>
+        <p>„Zum Waggon bringen“ ergibt sich aus der letzten Zählung im Waggon und der Mindeststückzahl.</p>
+        <button id="btnAllesGebracht" class="btn primary">✓ Alles zum Waggon gebracht</button>
+      </div>
+    </section>
+
+    <!-- Einstellungen -->
+    <section id="view-einstellungen" class="view">
+      <div class="card">
+        <h2>Mindeststückzahlen</h2>
+        <p class="muted-text">Im Waggon wird nach jeder Zählung bis zur <strong>Mindeststückzahl im Waggon</strong> nachgefüllt.
+          Fällt das Lager auf seine Mindeststückzahl, heißt es „nachbestellen“.
+          „Stück pro Kiste“ erlaubt bei Lieferungen die Eingabe in Kisten.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="list einst">
+          <thead>
+            <tr>
+              <th>Getränk</th>
+              <th class="num">Mindestens im Waggon</th>
+              <th class="num">Mindestens im Lager</th>
+              <th class="num">Stück pro Kiste</th>
+            </tr>
+          </thead>
+          <tbody id="einstListe"></tbody>
+        </table>
+        <p id="einstLeer" class="empty" hidden>Noch keine Getränke angelegt.</p>
+      </div>
+      <div id="einstLeiste" class="aktion-leiste">
+        <p>Neue Getränke legst du unter „Bestand“ mit „+ Neues Getränk“ an.</p>
+        <button id="btnEinstSpeichern" class="btn primary" disabled>Einstellungen speichern</button>
       </div>
     </section>
 
@@ -164,7 +202,7 @@
         <label>Mindestens im Lager (Stück)
           <input name="mindest" type="number" min="0" step="any" value="0">
         </label>
-        <label>Mindestens im Waggon (Stück)
+        <label>Mindestens im Waggon (Stück, wird bis dahin nachgefüllt)
           <input name="mindestWaggon" type="number" min="0" step="any" value="0">
         </label>
       </div>

@@ -27,7 +27,8 @@ create table if not exists public.buchungen (
   id              uuid primary key default gen_random_uuid(),
   artikel_id      uuid references public.artikel(id) on delete set null,
   artikel_name    text not null,           -- bleibt erhalten, falls der Artikel gelöscht wird
-  typ             text not null,           -- ein = Lieferung, aus = Lager → Waggon, verkauf = im Waggon verkauft
+  typ             text not null,           -- ein = Lieferung, aus = Lager → Waggon, verkauf = im Waggon verkauft,
+                                           -- korrektur = beim Zählen mehr im Waggon als gebucht
   menge           numeric not null check (menge > 0),
   bestand_danach  numeric not null,        -- Lager nach der Buchung
   waggon_danach   numeric,                 -- Waggon nach der Buchung
@@ -40,7 +41,7 @@ create index if not exists buchungen_datum_idx on public.buchungen (datum);
 
 alter table public.buchungen add column if not exists waggon_danach numeric;
 alter table public.buchungen drop constraint if exists buchungen_typ_check;
-alter table public.buchungen add constraint buchungen_typ_check check (typ in ('ein', 'aus', 'verkauf'));
+alter table public.buchungen add constraint buchungen_typ_check check (typ in ('ein', 'aus', 'verkauf', 'korrektur'));
 
 -- ---------- Zugriffsregeln ----------
 -- Nur angemeldete Benutzer dürfen lesen und schreiben.
@@ -85,7 +86,7 @@ begin
   if auth.uid() is null then
     raise exception 'Nicht angemeldet.';
   end if;
-  if p_typ not in ('ein', 'aus', 'verkauf') then
+  if p_typ not in ('ein', 'aus', 'verkauf', 'korrektur') then
     raise exception 'Ungültige Buchungsart.';
   end if;
   if p_menge is null or p_menge <= 0 then
@@ -105,7 +106,8 @@ begin
 
   update public.artikel
      set bestand = bestand + case p_typ when 'ein' then p_menge when 'aus' then -p_menge else 0 end,
-         waggon  = waggon  + case p_typ when 'aus' then p_menge when 'verkauf' then -p_menge else 0 end
+         waggon  = waggon  + case p_typ when 'aus' then p_menge when 'korrektur' then p_menge
+                                         when 'verkauf' then -p_menge else 0 end
    where id = p_artikel
   returning * into a;
 

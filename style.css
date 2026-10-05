@@ -207,6 +207,24 @@ table.list { width: 100%; border-collapse: collapse; }
 .eingabe-wahl label { display: flex; flex-direction: row; align-items: center; gap: 6px; color: var(--text); font-size: 14px; }
 .eingabe-wahl input { width: auto; }
 .umrechnung { color: var(--accent); font-weight: 700; font-size: 13px; }
+.aktion-leiste {
+  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between;
+  margin-top: 12px; padding: 12px 14px; background: var(--surface); border: 1px dashed var(--border); border-radius: var(--radius);
+}
+/* Speichern-Knöpfe bleiben beim Scrollen unten sichtbar */
+#zaehlLeiste, #bringenLeiste, #einstLeiste {
+  position: sticky; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); z-index: 4;
+  border-style: solid; border-color: var(--text); box-shadow: 0 6px 18px color-mix(in srgb, var(--text) 25%, transparent);
+}
+.aktion-leiste p { margin: 0; flex: 1 1 260px; min-width: 0; color: var(--muted); font-size: 14px; }
+.aktion-leiste p strong { color: var(--text); }
+/* Zählfelder im Waggon und Eingaben in den Einstellungen */
+.list input[type=number] { width: 6.5em; text-align: right; padding: 7px 8px; font-variant-numeric: tabular-nums; }
+.zaehl { font-weight: 700; border-width: 2px; border-color: var(--text); }
+.zaehl::placeholder { color: var(--muted); font-weight: 400; }
+.bringen { color: var(--move); font-size: 16px; }
+.still { color: var(--muted); }
+.btn:disabled { cursor: not-allowed; }
 .frage-text { margin: 0; white-space: pre-line; }
 .muted-text { color: var(--muted); margin: 0; }
 .btn:disabled { opacity: .6; cursor: progress; }
@@ -255,6 +273,17 @@ menu .left { margin-right: auto; }
   .grid2 { grid-template-columns: 1fr; }
   .toolbar .btn.primary { width: 100%; }
   .toolbar input[type=search] { flex-basis: 100%; }
+  .tab { padding: 8px 9px; font-size: 14px; }
+  .aktion-leiste .btn { width: 100%; }
+  table.einst thead { display: none; }
+  table.einst, .einst tbody, .einst tr, .einst td { display: block; width: 100%; }
+  .einst tr { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .einst tr.gruppe { display: block; padding: 14px 12px 4px; }
+  .einst tr.gruppe th { display: block; padding: 0; border: 0; }
+  .einst td { border: 0; padding: 0; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .einst td[data-k=name] { grid-column: 1 / -1; font-weight: 700; }
+  .einst td[data-label] { grid-column: 1 / -1; }
+  .einst td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 14px; }
   #view-bestand table.list thead { display: none; }
   #view-bestand table.list, #view-bestand .list tbody, #view-bestand .list tr, #view-bestand .list td { display: block; width: 100%; }
   #view-bestand .list tr { padding: 10px 12px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; }
