@@ -1,10 +1,11 @@
--- Lagersystem Erlebnisbahnhof Staben – Datenbank-Schema für Supabase
+-- Getränkelager Erlebnisbahnhof Staben – Datenbank-Schema für Supabase
 -- Einmalig im Supabase-Dashboard unter "SQL Editor" komplett ausführen.
 
 -- ---------- Tabellen ----------
 create table if not exists public.artikel (
   id        uuid primary key default gen_random_uuid(),
   name      text not null check (length(trim(name)) > 0),
+  sorte     text not null default '',
   ort       text not null default '',
   einheit   text not null default 'Stück',
   mindest   numeric not null default 0 check (mindest >= 0),
@@ -12,6 +13,9 @@ create table if not exists public.artikel (
   notiz     text not null default '',
   angelegt  timestamptz not null default now()
 );
+
+-- Falls die Tabelle schon aus einer älteren Version existiert
+alter table public.artikel add column if not exists sorte text not null default '';
 
 create table if not exists public.buchungen (
   id              uuid primary key default gen_random_uuid(),
@@ -36,7 +40,7 @@ alter table public.buchungen enable row level security;
 
 revoke all on public.artikel, public.buchungen from anon, authenticated;
 grant select, insert, delete on public.artikel to authenticated;
-grant update (name, ort, einheit, mindest, notiz) on public.artikel to authenticated;
+grant update (name, sorte, ort, einheit, mindest, notiz) on public.artikel to authenticated;
 grant select on public.buchungen to authenticated;
 
 drop policy if exists "artikel lesen" on public.artikel;

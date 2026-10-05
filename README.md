@@ -1,14 +1,17 @@
-# Lagersystem Erlebnisbahnhof Staben
+# Getränkelager Erlebnisbahnhof Staben
 
-Web-App zur Lagerverwaltung für den Erlebnisbahnhof Staben.
+Web-App für das Getränkelager des Erlebnisbahnhofs Staben
+(Cola, Calypso, Eistee, Jambo, Holundersirup, Radler, Bier, alkoholfreies Bier, Forst, Prosecco, Aperol).
 Läuft im Browser auf PC, Tablet und Handy – ohne Installation.
 
 ## Funktionen
 
-- **Artikel** anlegen und bearbeiten (Bezeichnung, Lagerort, Einheit, Mindestbestand, Notiz)
+- **Getränke** anlegen und bearbeiten (Bezeichnung, Sorte, Lagerort, Einheit wie Kiste/Flasche/Fass, Mindestbestand, Notiz)
+- **Getränkeliste mit einem Klick**: bei leerem Lager legt ein Button alle Getränke des Bahnhofs an
+- Anzeige **nach Sorten gruppiert**: Alkoholfrei, Bier & Radler, Wein & Prosecco, Spirituosen
 - **Ein- und Ausbuchen** mit Menge, Person und Notiz – Ausgänge über den Bestand hinaus werden verhindert
 - **Verlauf** aller Buchungen, filterbar nach Artikel und Ein-/Ausgang
-- **Mindestbestand-Warnung**: Artikel am oder unter Mindestbestand werden oben hervorgehoben
+- **Mindestbestand-Warnung**: Getränke am oder unter Mindestbestand werden oben hervorgehoben
   („nachbestellen“), bis 25 % darüber als „knapp“ markiert
 - **Gemeinsame Datenbank** (optional, Supabase): alle Geräte sehen dieselben Daten, Änderungen
   erscheinen live; Zugang nur mit Anmeldung
@@ -40,7 +43,7 @@ Solange in `config.js` nichts eingetragen ist, läuft die App im lokalen Modus.
 6. Änderung committen – fertig. Beim Öffnen der App erscheint nun die Anmeldung.
 
 Daten aus dem lokalen Modus übernehmen: im lokalen Modus unter **Daten → Sicherung herunterladen**,
-dann angemeldet unter **Daten → Sicherung übernehmen** die Datei auswählen. Artikel und aktuelle
+dann angemeldet unter **Daten → Sicherung übernehmen** die Datei auswählen. Getränke und aktuelle
 Bestände werden übernommen (der alte Buchungsverlauf nicht).
 
 ### Sicherheit

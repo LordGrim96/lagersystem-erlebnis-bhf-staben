@@ -120,6 +120,11 @@ table.list { width: 100%; border-collapse: collapse; }
 .list .actions { text-align: right; white-space: nowrap; }
 .list td.actions .btn + .btn { margin-left: 4px; }
 .list tr.krit { background: var(--crit-bg); }
+.list tr.gruppe th {
+  background: var(--surface); color: var(--accent); font-size: 12px; text-transform: uppercase;
+  letter-spacing: .06em; padding-top: 16px; padding-bottom: 6px;
+}
+#leer .btn { margin: 14px 0 8px; }
 .name-link { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--text); cursor: pointer; text-align: left; }
 .name-link:hover { text-decoration: underline; }
 .small-note { display: block; font-size: 12px; color: var(--muted); }
@@ -195,6 +200,8 @@ menu .left { margin-right: auto; }
   #view-bestand .list tr { padding: 10px 12px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; }
   #view-bestand .list td { border: 0; padding: 0; text-align: left; }
   #view-bestand .list td[data-k=name] { grid-column: 1 / -1; }
+  #view-bestand .list tr.gruppe { display: block; padding: 14px 12px 4px; }
+  #view-bestand .list tr.gruppe th { display: block; padding: 0; border: 0; }
   #view-bestand .list td[data-k=ort], #view-bestand .list td[data-k=mindest] { color: var(--muted); font-size: 13px; }
   #view-bestand .list td[data-k=mindest]::before { content: "Mindest: "; }
   #view-bestand .list td[data-k=bestand]::before { content: "Bestand: "; color: var(--muted); font-weight: 400; }

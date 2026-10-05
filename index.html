@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lager · Erlebnisbahnhof Staben</title>
+  <title>Getränkelager · Erlebnisbahnhof Staben</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
     <div class="brand">
       <span class="logo" aria-hidden="true">🚂</span>
       <div>
-        <h1>Lagersystem</h1>
+        <h1>Getränkelager</h1>
         <p class="sub">Erlebnisbahnhof Staben</p>
       </div>
       <div class="user" id="userBox" hidden>
@@ -32,7 +32,7 @@
     <section id="view-login" class="view">
       <form id="formLogin" class="card login">
         <h2>Anmelden</h2>
-        <p class="muted-text">Bitte mit deinem Zugang zum Lagersystem anmelden.</p>
+        <p class="muted-text">Bitte mit deinem Zugang zum Getränkelager anmelden.</p>
         <label>E-Mail
           <input name="email" type="email" autocomplete="username" required>
         </label>
@@ -58,16 +58,16 @@
       <div id="warnungen" class="warn-box" hidden></div>
 
       <div class="toolbar">
-        <input id="suche" type="search" placeholder="Artikel oder Lagerort suchen …" autocomplete="off">
+        <input id="suche" type="search" placeholder="Getränk, Sorte oder Lagerort suchen …" autocomplete="off">
         <label class="check"><input id="nurKritisch" type="checkbox"> nur Nachbestellbedarf</label>
-        <button id="btnNeu" class="btn primary">+ Neuer Artikel</button>
+        <button id="btnNeu" class="btn primary">+ Neues Getränk</button>
       </div>
 
       <div class="table-wrap">
         <table class="list">
           <thead>
             <tr>
-              <th>Artikel</th>
+              <th>Getränk</th>
               <th>Lagerort</th>
               <th class="num">Bestand</th>
               <th class="num">Mindest</th>
@@ -85,7 +85,7 @@
     <section id="view-verlauf" class="view">
       <div class="toolbar">
         <select id="verlaufFilter">
-          <option value="">Alle Artikel</option>
+          <option value="">Alle Getränke</option>
         </select>
         <select id="verlaufTyp">
           <option value="">Ein- & Ausgänge</option>
@@ -98,7 +98,7 @@
           <thead>
             <tr>
               <th>Datum</th>
-              <th>Artikel</th>
+              <th>Getränk</th>
               <th>Art</th>
               <th class="num">Menge</th>
               <th class="num">Bestand danach</th>
@@ -128,25 +128,36 @@
       </div>
       <div class="card danger" id="resetCard">
         <h2>Alles löschen</h2>
-        <p>Entfernt alle Artikel und Buchungen aus diesem Browser.</p>
+        <p>Entfernt alle Getränke und Buchungen aus diesem Browser.</p>
         <button id="btnReset" class="btn danger">Alle Daten löschen</button>
       </div>
     </section>
   </main>
 
-  <!-- Dialog: Artikel anlegen/bearbeiten -->
+  <!-- Dialog: Getränk anlegen/bearbeiten -->
   <dialog id="dlgArtikel">
     <form id="formArtikel">
-      <h2 id="dlgArtikelTitel">Neuer Artikel</h2>
-      <label>Bezeichnung *
-        <input name="name" required maxlength="120">
-      </label>
+      <h2 id="dlgArtikelTitel">Neues Getränk</h2>
+      <div class="grid2">
+        <label>Bezeichnung *
+          <input name="name" required maxlength="120" placeholder="z. B. Cola 0,5 l">
+        </label>
+        <label>Sorte
+          <select name="sorte">
+            <option>Alkoholfrei</option>
+            <option>Bier &amp; Radler</option>
+            <option>Wein &amp; Prosecco</option>
+            <option>Spirituosen</option>
+            <option value="">Sonstiges</option>
+          </select>
+        </label>
+      </div>
       <div class="grid2">
         <label>Lagerort
-          <input name="ort" maxlength="80" list="orteListe" placeholder="z. B. Lokschuppen, Regal 3">
+          <input name="ort" maxlength="80" list="orteListe" placeholder="z. B. Kühlraum, Kiosk">
         </label>
         <label>Einheit
-          <input name="einheit" maxlength="20" list="einheitenListe" placeholder="Stück">
+          <input name="einheit" maxlength="20" list="einheitenListe" placeholder="Kiste">
         </label>
       </div>
       <div class="grid2">
@@ -158,7 +169,7 @@
         </label>
       </div>
       <label>Notiz
-        <input name="notiz" maxlength="200" placeholder="z. B. Lieferant, Artikelnummer">
+        <input name="notiz" maxlength="200" placeholder="z. B. Lieferant, Flaschen pro Kiste">
       </label>
       <p id="artikelFehler" class="error" hidden></p>
       <menu>
@@ -187,7 +198,7 @@
         </label>
       </div>
       <label>Notiz
-        <input name="notiz" maxlength="200" placeholder="z. B. Lieferung, Veranstaltung, Reparatur">
+        <input name="notiz" maxlength="200" placeholder="z. B. Lieferung, Kiosk aufgefüllt, Sommerfest">
       </label>
       <p id="buchungFehler" class="error" hidden></p>
       <menu>
@@ -214,7 +225,7 @@
 
   <datalist id="orteListe"></datalist>
   <datalist id="einheitenListe">
-    <option value="Stück"><option value="Liter"><option value="kg"><option value="m"><option value="Packung"><option value="Karton">
+    <option value="Kiste"><option value="Flasche"><option value="Fass"><option value="Dose"><option value="Karton"><option value="Liter">
   </datalist>
   <datalist id="personenListe"></datalist>
 

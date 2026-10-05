@@ -22,7 +22,30 @@ function status(a) {
   if (a.mindest > 0 && a.bestand <= a.mindest * 1.25) return 'warn';
   return 'ok';
 }
+// Menge mit Einheit, im Plural wo nötig: "1 Kiste", "3 Kisten"
+const PLURAL = { Kiste: 'Kisten', Flasche: 'Flaschen', Dose: 'Dosen', Fass: 'Fässer', Karton: 'Kartons' };
+const mengeText = (n, einheit = '') => `${fmt(n)} ${Number(n) === 1 ? einheit : PLURAL[einheit] ?? einheit}`.trim();
+
 const STATUS_LABEL = { ok: 'OK', warn: 'knapp', krit: 'nachbestellen' };
+
+// Sorten in Anzeige-Reihenfolge ('' = Sonstiges)
+const SORTEN = ['Alkoholfrei', 'Bier & Radler', 'Wein & Prosecco', 'Spirituosen', ''];
+const sorteName = (s) => s || 'Sonstiges';
+
+// Getränkeliste des Erlebnisbahnhofs: [Name, Sorte, Einheit]
+const GETRAENKELISTE = [
+  ['Cola', 'Alkoholfrei', 'Kiste'],
+  ['Calypso', 'Alkoholfrei', 'Kiste'],
+  ['Eistee', 'Alkoholfrei', 'Kiste'],
+  ['Jambo', 'Alkoholfrei', 'Kiste'],
+  ['Holundersirup', 'Alkoholfrei', 'Flasche'],
+  ['Hacker-Pschorr Radler', 'Bier & Radler', 'Kiste'],
+  ['Bier', 'Bier & Radler', 'Kiste'],
+  ['Alkoholfreies Bier', 'Bier & Radler', 'Kiste'],
+  ['Forst', 'Bier & Radler', 'Kiste'],
+  ['Prosecco', 'Wein & Prosecco', 'Flasche'],
+  ['Aperol', 'Spirituosen', 'Flasche'],
+];
 
 // ---------- Speicher: lokal (Browser) ----------
 const STORAGE_KEY = 'lager-bhf-staben-v1';
@@ -93,7 +116,7 @@ const CFG = window.LAGER_CONFIG || {};
 let sb = null; // Supabase-Client
 
 const mapArtikel = (r) => ({
-  id: r.id, name: r.name, ort: r.ort, einheit: r.einheit, notiz: r.notiz,
+  id: r.id, name: r.name, sorte: r.sorte ?? '', ort: r.ort, einheit: r.einheit, notiz: r.notiz,
   mindest: Number(r.mindest), bestand: Number(r.bestand), angelegt: r.angelegt,
 });
 const mapBuchung = (r) => ({
@@ -155,7 +178,7 @@ const cloudStore = {
   async importieren(data) {
     for (const a of data.artikel) {
       const { data: neu, error } = await sb.from('artikel').insert({
-        name: a.name, ort: a.ort || '', einheit: a.einheit || 'Stück',
+        name: a.name, sorte: a.sorte || '', ort: a.ort || '', einheit: a.einheit || 'Kiste',
         mindest: Number(a.mindest) || 0, notiz: a.notiz || '',
       }).select().single();
       dbFehler(error);
@@ -176,11 +199,11 @@ let store = localStore;
 // ---------- Fachlogik ----------
 async function buchen(artikelId, typ, menge, person, notiz) {
   const a = findArtikel(artikelId);
-  if (!a) throw new Error('Artikel nicht gefunden.');
+  if (!a) throw new Error('Getränk nicht gefunden.');
   menge = round(Number(menge));
   if (!(menge > 0)) throw new Error('Bitte eine Menge größer 0 eingeben.');
   if (typ === 'aus' && menge > a.bestand) {
-    throw new Error(`Nicht genug auf Lager – verfügbar: ${fmt(a.bestand)} ${a.einheit}.`);
+    throw new Error(`Nicht genug auf Lager – verfügbar: ${mengeText(a.bestand, a.einheit)}.`);
   }
   const vorher = status(a);
   await store.buchen(artikelId, typ, menge, person.trim(), notiz.trim());
@@ -188,7 +211,7 @@ async function buchen(artikelId, typ, menge, person, notiz) {
   if (nachher && status(nachher) === 'krit' && vorher !== 'krit') {
     toast(`⚠️ ${a.name}: Mindestbestand erreicht – bitte nachbestellen!`, 5000);
   } else {
-    toast(`${typ === 'ein' ? 'Eingang' : 'Ausgang'} gebucht: ${fmt(menge)} ${a.einheit} ${a.name}`);
+    toast(`${typ === 'ein' ? 'Eingang' : 'Ausgang'} gebucht: ${mengeText(menge, a.einheit)} ${a.name}`);
   }
 }
 
@@ -213,17 +236,16 @@ function renderBestand() {
   const q = $('#suche').value.trim().toLowerCase();
   const nurKrit = $('#nurKritisch').checked;
   const liste = state.artikel
-    .filter((a) => !q || a.name.toLowerCase().includes(q) || (a.ort || '').toLowerCase().includes(q))
-    .filter((a) => !nurKrit || status(a) === 'krit')
-    .sort(byName);
+    .filter((a) => !q || [a.name, a.ort, sorteName(a.sorte)].some((t) => (t || '').toLowerCase().includes(q)))
+    .filter((a) => !nurKrit || status(a) === 'krit');
 
-  $('#artikelListe').innerHTML = liste.map((a) => {
+  const zeile = (a) => {
     const s = status(a);
     return `<tr class="${s === 'krit' ? 'krit' : ''}">
       <td data-k="name"><button class="name-link" data-edit="${a.id}" title="Bearbeiten">${esc(a.name)}</button>
         ${a.notiz ? `<span class="small-note">${esc(a.notiz)}</span>` : ''}</td>
       <td data-k="ort">${esc(a.ort || '–')}</td>
-      <td data-k="bestand" class="num">${fmt(a.bestand)} ${esc(a.einheit)}</td>
+      <td data-k="bestand" class="num">${esc(mengeText(a.bestand, a.einheit))}</td>
       <td data-k="mindest" class="num">${fmt(a.mindest)}</td>
       <td data-k="status"><span class="badge ${s}">${STATUS_LABEL[s]}</span></td>
       <td class="actions">
@@ -231,13 +253,23 @@ function renderBestand() {
         <button class="btn small out" data-buchen="${a.id}" data-typ="aus">− Ausgang</button>
       </td>
     </tr>`;
+  };
+  // Nach Sorte gruppiert; unbekannte Sorten landen unter "Sonstiges"
+  const gruppe = (a) => (SORTEN.includes(a.sorte || '') ? a.sorte || '' : '');
+  $('#artikelListe').innerHTML = SORTEN.map((sorte) => {
+    const inGruppe = liste.filter((a) => gruppe(a) === sorte).sort(byName);
+    if (!inGruppe.length) return '';
+    return `<tr class="gruppe"><th colspan="6">${esc(sorteName(sorte))}</th></tr>` + inGruppe.map(zeile).join('');
   }).join('');
 
   const leer = $('#leer');
   leer.hidden = liste.length > 0;
-  leer.textContent = state.artikel.length
-    ? 'Keine passenden Artikel gefunden.'
-    : 'Noch keine Artikel. Lege mit „+ Neuer Artikel“ den ersten an.';
+  leer.innerHTML = state.artikel.length
+    ? 'Keine passenden Getränke gefunden.'
+    : `Noch keine Getränke im Lager.<br>
+       <button class="btn primary" id="btnListe">Getränkeliste anlegen (${GETRAENKELISTE.length} Getränke)</button>
+       <span class="small-note">Cola, Calypso, Eistee, Jambo, Holundersirup, Radler, Bier, alkoholfreies Bier,
+       Forst, Prosecco und Aperol – Bestand und Mindestbestand trägst du danach ein.</span>`;
 }
 
 function renderWarnungen() {
@@ -245,14 +277,14 @@ function renderWarnungen() {
   const box = $('#warnungen');
   box.hidden = krit.length === 0;
   if (!krit.length) return;
-  box.innerHTML = `<strong>⚠️ ${krit.length} Artikel am oder unter Mindestbestand – bitte nachbestellen:</strong>
-    <ul>${krit.map((a) => `<li>${esc(a.name)}${a.ort ? ` (${esc(a.ort)})` : ''}: ${fmt(a.bestand)} von mind. ${fmt(a.mindest)} ${esc(a.einheit)}</li>`).join('')}</ul>`;
+  box.innerHTML = `<strong>⚠️ ${krit.length} ${krit.length === 1 ? 'Getränk' : 'Getränke'} am oder unter Mindestbestand – bitte nachbestellen:</strong>
+    <ul>${krit.map((a) => `<li>${esc(a.name)}${a.ort ? ` (${esc(a.ort)})` : ''}: ${fmt(a.bestand)} von mind. ${esc(mengeText(a.mindest, a.einheit))}</li>`).join('')}</ul>`;
 }
 
 function renderVerlauf() {
   const sel = $('#verlaufFilter');
   const aktuell = sel.value;
-  sel.innerHTML = '<option value="">Alle Artikel</option>' + [...state.artikel].sort(byName)
+  sel.innerHTML = '<option value="">Alle Getränke</option>' + [...state.artikel].sort(byName)
     .map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
   sel.value = findArtikel(aktuell) ? aktuell : '';
 
@@ -269,7 +301,7 @@ function renderVerlauf() {
       <td>${fmtDate(b.datum)}</td>
       <td>${name}</td>
       <td class="typ-${b.typ}">${b.typ === 'ein' ? 'Eingang' : 'Ausgang'}</td>
-      <td class="num">${b.typ === 'ein' ? '+' : '−'}${fmt(b.menge)} ${esc(a ? a.einheit : '')}</td>
+      <td class="num">${b.typ === 'ein' ? '+' : '−'}${esc(mengeText(b.menge, a ? a.einheit : ''))}</td>
       <td class="num">${fmt(b.bestandDanach)}</td>
       <td>${esc(b.person || '–')}</td>
       <td>${esc(b.notiz || '')}</td>
@@ -349,12 +381,13 @@ function openArtikel(id = null) {
   formArtikel.reset();
   $('#artikelFehler').hidden = true;
   const a = id ? findArtikel(id) : null;
-  $('#dlgArtikelTitel').textContent = a ? 'Artikel bearbeiten' : 'Neuer Artikel';
+  $('#dlgArtikelTitel').textContent = a ? 'Getränk bearbeiten' : 'Neues Getränk';
   $('#btnArtikelLoeschen').hidden = !a;
   formArtikel.querySelector('.only-new').hidden = !!a;
   if (a) {
     const f = formArtikel.elements;
     f.name.value = a.name;
+    f.sorte.value = SORTEN.includes(a.sorte || '') ? a.sorte || '' : '';
     f.ort.value = a.ort;
     f.einheit.value = a.einheit;
     f.mindest.value = a.mindest;
@@ -368,8 +401,9 @@ formArtikel.addEventListener('submit', async (e) => {
   const f = formArtikel.elements;
   const daten = {
     name: f.name.value.trim(),
+    sorte: f.sorte.value,
     ort: f.ort.value.trim(),
-    einheit: f.einheit.value.trim() || 'Stück',
+    einheit: f.einheit.value.trim() || 'Kiste',
     mindest: Math.max(0, round(Number(f.mindest.value) || 0)),
     notiz: f.notiz.value.trim(),
   };
@@ -377,23 +411,23 @@ formArtikel.addEventListener('submit', async (e) => {
   const doppelt = state.artikel.find((a) => a.id !== editId
     && a.name.toLowerCase() === daten.name.toLowerCase()
     && (a.ort || '').toLowerCase() === daten.ort.toLowerCase());
-  if (doppelt && !(await frage('Artikel doppelt?', `„${daten.name}“ gibt es an diesem Lagerort schon. Trotzdem speichern?`, { ok: 'Trotzdem speichern' }))) return;
+  if (doppelt && !(await frage('Getränk doppelt?', `„${daten.name}“ gibt es an diesem Lagerort schon. Trotzdem speichern?`, { ok: 'Trotzdem speichern' }))) return;
 
   const id = editId;
   const anfang = round(Number(f.anfang.value) || 0);
   ausfuehren(formArtikel, $('#artikelFehler'), async () => {
     const a = await store.artikelSpeichern(daten, id);
     if (!id && anfang > 0) await store.buchen(a.id, 'ein', anfang, '', 'Anfangsbestand');
-    toast(id ? 'Artikel gespeichert' : `Artikel „${a.name}“ angelegt`);
+    toast(id ? 'Getränk gespeichert' : `„${a.name}“ angelegt`);
   });
 });
 
 $('#btnArtikelLoeschen').addEventListener('click', async () => {
   const a = findArtikel(editId);
-  if (!a || !(await frage('Artikel löschen?', `„${a.name}“ wird gelöscht. Die Buchungen bleiben im Verlauf erhalten.`, { ok: 'Löschen', gefahr: true }))) return;
+  if (!a || !(await frage('Getränk löschen?', `„${a.name}“ wird gelöscht. Die Buchungen bleiben im Verlauf erhalten.`, { ok: 'Löschen', gefahr: true }))) return;
   ausfuehren(formArtikel, $('#artikelFehler'), async () => {
     await store.artikelLoeschen(a.id);
-    toast('Artikel gelöscht');
+    toast('Getränk gelöscht');
   });
 });
 
@@ -408,7 +442,7 @@ function updateBuchungInfo() {
   if (!a) return;
   const typ = formBuchung.elements.typ.value;
   $('#dlgBuchungTitel').textContent = `${typ === 'ein' ? 'Eingang' : 'Ausgang'} buchen`;
-  $('#dlgBuchungInfo').textContent = `${a.name} · aktuell ${fmt(a.bestand)} ${a.einheit}`
+  $('#dlgBuchungInfo').textContent = `${a.name} · aktuell ${mengeText(a.bestand, a.einheit)}`
     + (a.mindest > 0 ? ` · Mindestbestand ${fmt(a.mindest)}` : '');
 }
 
@@ -453,9 +487,9 @@ $('#btnExport').addEventListener('click', () => {
 
 $('#btnCsv').addEventListener('click', () => {
   const zelle = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const zeilen = [['Artikel', 'Lagerort', 'Bestand', 'Einheit', 'Mindestbestand', 'Status', 'Notiz']]
+  const zeilen = [['Getränk', 'Sorte', 'Lagerort', 'Bestand', 'Einheit', 'Mindestbestand', 'Status', 'Notiz']]
     .concat([...state.artikel].sort(byName).map((a) => [
-      a.name, a.ort, fmt(a.bestand), a.einheit, fmt(a.mindest), STATUS_LABEL[status(a)], a.notiz,
+      a.name, sorteName(a.sorte), a.ort, fmt(a.bestand), a.einheit, fmt(a.mindest), STATUS_LABEL[status(a)], a.notiz,
     ]));
   // BOM + Semikolon, damit Excel (deutsch) die Datei direkt richtig öffnet
   download(`bestand-bhf-staben-${heute()}.csv`,
@@ -471,13 +505,13 @@ $('#importFile').addEventListener('change', async (e) => {
     data = JSON.parse(await file.text());
     if (!Array.isArray(data.artikel) || !Array.isArray(data.buchungen)) throw new Error();
   } catch {
-    hinweis('Datei nicht lesbar', 'Die Datei ist keine gültige Sicherung des Lagersystems.');
+    hinweis('Datei nicht lesbar', 'Die Datei ist keine gültige Sicherung des Getränkelagers.');
     return;
   }
   const text = store.cloud
-    ? `${data.artikel.length} Artikel mit ihren aktuellen Beständen in die gemeinsame Datenbank übernehmen?\n`
-      + 'Sie werden zu den vorhandenen Artikeln hinzugefügt. Der alte Buchungsverlauf wird nicht übertragen.'
-    : `Sicherung mit ${data.artikel.length} Artikeln und ${data.buchungen.length} Buchungen einspielen?\n`
+    ? `${data.artikel.length} Getränke mit ihren aktuellen Beständen in die gemeinsame Datenbank übernehmen?\n`
+      + 'Sie werden zu den vorhandenen Getränken hinzugefügt. Der alte Buchungsverlauf wird nicht übertragen.'
+    : `Sicherung mit ${data.artikel.length} Getränken und ${data.buchungen.length} Buchungen einspielen?\n`
       + 'Die aktuellen Daten in diesem Browser werden ersetzt.';
   if (!(await frage('Sicherung einspielen?', text, { ok: store.cloud ? 'Übernehmen' : 'Ersetzen', gefahr: !store.cloud }))) return;
   try {
@@ -492,7 +526,7 @@ $('#importFile').addEventListener('change', async (e) => {
 });
 
 $('#btnReset').addEventListener('click', async () => {
-  if (!(await frage('Alle Daten löschen?', 'Alle Artikel und Buchungen in diesem Browser werden endgültig gelöscht.', { ok: 'Alles löschen', gefahr: true, eingabe: 'LÖSCHEN' }))) return;
+  if (!(await frage('Alle Daten löschen?', 'Alle Getränke und Buchungen in diesem Browser werden endgültig gelöscht.', { ok: 'Alles löschen', gefahr: true, eingabe: 'LÖSCHEN' }))) return;
   await store.reset();
   render();
   toast('Alle Daten gelöscht');
@@ -506,6 +540,24 @@ $('#suche').addEventListener('input', renderBestand);
 $('#nurKritisch').addEventListener('change', renderBestand);
 $('#verlaufFilter').addEventListener('change', renderVerlauf);
 $('#verlaufTyp').addEventListener('change', renderVerlauf);
+
+// Legt die Getränkeliste an (nur Getränke, die es noch nicht gibt)
+$('#leer').addEventListener('click', async (e) => {
+  if (!e.target.closest('#btnListe')) return;
+  e.target.disabled = true;
+  try {
+    const vorhanden = new Set(state.artikel.map((a) => a.name.toLowerCase()));
+    for (const [name, sorte, einheit] of GETRAENKELISTE) {
+      if (vorhanden.has(name.toLowerCase())) continue;
+      await store.artikelSpeichern({ name, sorte, ort: '', einheit, mindest: 0, notiz: '' });
+    }
+    render();
+    toast('Getränkeliste angelegt – jetzt Bestände einbuchen und Mindestbestände eintragen');
+  } catch (err) {
+    e.target.disabled = false;
+    hinweis('Anlegen fehlgeschlagen', err.message);
+  }
+});
 
 $('#artikelListe').addEventListener('click', (e) => {
   const edit = e.target.closest('[data-edit]');
@@ -602,18 +654,25 @@ $('#formLogin').addEventListener('submit', async (e) => {
 
 $('#btnLogout').addEventListener('click', () => sb.auth.signOut());
 
-// Nur für die Testversion (CFG.demo): ein paar typische Artikel mit Verlauf
+// Nur für die Testversion (CFG.demo): Getränkeliste mit Beispielzahlen und etwas Verlauf
 async function beispielDatenAnlegen() {
-  const beispiele = [
-    ['Schmieröl für Draisinen', 'Lokschuppen', 'Liter', 5, 12, [['aus', 3, 'Wartung Draisine 2']]],
-    ['Bremsklötze Fahrraddraisine', 'Werkstatt, Regal 2', 'Stück', 4, 8, [['aus', 4, 'Inspektion vor Saisonstart']]],
-    ['Fahrkartenrollen', 'Kasse', 'Rolle', 10, 6, []],
-    ['Warnwesten', 'Bahnsteig-Schrank', 'Stück', 15, 18, [['aus', 2, 'Gruppenfahrt Schulklasse']]],
-    ['Erste-Hilfe-Kasten', 'Lokschuppen', 'Stück', 2, 3, []],
-    ['Getränke Mineralwasser', 'Kiosk-Lager', 'Kasten', 6, 14, [['aus', 5, 'Sommerfest'], ['ein', 4, 'Lieferung']]],
-  ];
-  for (const [name, ort, einheit, mindest, anfang, buchungen] of beispiele) {
-    const a = await store.artikelSpeichern({ name, ort, einheit, mindest, notiz: 'Beispiel' });
+  // [Lagerort, Mindestbestand, Anfangsbestand, Buchungen]
+  const beispiel = {
+    Cola: ['Kühlraum', 5, 12, [['aus', 4, 'Kiosk aufgefüllt']]],
+    Calypso: ['Kühlraum', 4, 6, [['aus', 3, 'Sommerfest']]],
+    Eistee: ['Kühlraum', 4, 9, []],
+    Jambo: ['Kühlraum', 3, 5, [['aus', 2, 'Kiosk aufgefüllt']]],
+    Holundersirup: ['Kiosk', 3, 8, []],
+    'Hacker-Pschorr Radler': ['Keller', 4, 10, [['aus', 3, 'Draisinen-Gruppe']]],
+    Bier: ['Keller', 6, 15, [['aus', 5, 'Sommerfest'], ['ein', 6, 'Lieferung Getränkehandel']]],
+    'Alkoholfreies Bier': ['Keller', 3, 4, []],
+    Forst: ['Keller', 5, 12, [['aus', 4, 'Vereinsabend']]],
+    Prosecco: ['Kiosk', 6, 12, [['aus', 6, 'Hochzeitsfahrt']]],
+    Aperol: ['Kiosk', 2, 4, []],
+  };
+  for (const [name, sorte, einheit] of GETRAENKELISTE) {
+    const [ort, mindest, anfang, buchungen] = beispiel[name];
+    const a = await store.artikelSpeichern({ name, sorte, ort, einheit, mindest, notiz: '' });
     await store.buchen(a.id, 'ein', anfang, '', 'Anfangsbestand');
     for (const [typ, menge, notiz] of buchungen) await store.buchen(a.id, typ, menge, 'Beispiel', notiz);
   }
@@ -623,7 +682,7 @@ async function start() {
   if (!(CFG.supabaseUrl && CFG.supabaseAnonKey)) {
     $('#lokalHinweis').hidden = false;
     if (CFG.demo) {
-      $('#lokalHinweis').innerHTML = '<strong>Testversion:</strong> Die Artikel sind Beispiele. '
+      $('#lokalHinweis').innerHTML = '<strong>Testversion:</strong> Bestände und Buchungen sind Beispielzahlen. '
         + 'Alles, was du hier änderst, bleibt nur in deinem Browser.';
       await store.laden();
       if (!state.artikel.length) await beispielDatenAnlegen();
@@ -639,7 +698,7 @@ async function start() {
   $('#resetCard').hidden = true;
   $('#importLabel').textContent = 'Sicherung übernehmen';
   $('#datenText').textContent = 'Die Daten liegen in der gemeinsamen Datenbank und sind auf allen Geräten gleich. '
-    + 'Hier kannst du zusätzlich eine Sicherung herunterladen oder Artikel aus einer Sicherung (z. B. aus dem lokalen Modus) übernehmen.';
+    + 'Hier kannst du zusätzlich eine Sicherung herunterladen oder Getränke aus einer Sicherung (z. B. aus dem lokalen Modus) übernehmen.';
   zeigeAnsicht('laden');
   try {
     await ladeSkript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js');
