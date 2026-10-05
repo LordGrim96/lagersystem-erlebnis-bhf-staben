@@ -10,7 +10,7 @@ Läuft im Browser auf PC, Tablet und Handy – ohne Installation.
 - **Getränkeliste mit einem Klick**: bei leerem Lager legt ein Button alle Getränke des Bahnhofs an
 - Anzeige **nach Sorten gruppiert**: Alkoholfrei, Bier & Radler, Wein & Prosecco, Spirituosen
 - **Ein- und Ausbuchen** mit Menge, Person und Notiz – Ausgänge über den Bestand hinaus werden verhindert
-- **Verlauf** aller Buchungen, filterbar nach Artikel und Ein-/Ausgang
+- **Verlauf** aller Buchungen, filterbar nach Getränk und Ein-/Ausgang
 - **Mindestbestand-Warnung**: Getränke am oder unter Mindestbestand werden oben hervorgehoben
   („nachbestellen“), bis 25 % darüber als „knapp“ markiert
 - **Gemeinsame Datenbank** (optional, Supabase): alle Geräte sehen dieselben Daten, Änderungen
