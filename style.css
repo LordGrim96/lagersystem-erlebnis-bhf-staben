@@ -225,6 +225,11 @@ table.list { width: 100%; border-collapse: collapse; }
 .bringen { color: var(--move); font-size: 16px; }
 .still { color: var(--muted); }
 .btn:disabled { cursor: not-allowed; }
+.tab svg { display: none; }
+.nur-handy { display: none; }
+.kisten { color: var(--muted); font-weight: 500; }
+.warn-box summary { cursor: pointer; font-weight: 800; color: var(--crit); list-style-position: inside; }
+.warn-box[open] summary { margin-bottom: 8px; }
 .frage-text { margin: 0; white-space: pre-line; }
 .muted-text { color: var(--muted); margin: 0; }
 .btn:disabled { opacity: .6; cursor: progress; }
@@ -269,31 +274,123 @@ menu .left { margin-right: auto; }
 }
 
 /* Handy: Tabelle als Karten */
+/* ================= Handy ================= */
 @media (max-width: 680px) {
-  .grid2 { grid-template-columns: 1fr; }
-  .toolbar .btn.primary { width: 100%; }
-  .toolbar input[type=search] { flex-basis: 100%; }
-  .tab { padding: 8px 9px; font-size: 14px; }
-  .aktion-leiste .btn { width: 100%; }
-  table.einst thead { display: none; }
-  table.einst, .einst tbody, .einst tr, .einst td { display: block; width: 100%; }
-  .einst tr { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
-  .einst tr.gruppe { display: block; padding: 14px 12px 4px; }
-  .einst tr.gruppe th { display: block; padding: 0; border: 0; }
-  .einst td { border: 0; padding: 0; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-  .einst td[data-k=name] { grid-column: 1 / -1; font-weight: 700; }
-  .einst td[data-label] { grid-column: 1 / -1; }
-  .einst td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 14px; }
+  :root { --nav-h: 62px; }
+  body { font-size: 16px; }
+  /* Eingabefelder mit 16px, sonst zoomt iOS beim Antippen hinein */
+  input, select { font-size: 16px; }
+  main { padding: 12px 12px calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px); }
+
+  /* Kopf scrollt mit, Navigation als Leiste unten im Daumenbereich */
+  .topbar { position: static; padding: 12px 16px 10px; }
+  h1 { font-size: 28px; }
+  .tabs {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; margin: 0;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    background: var(--text); padding: 4px 4px env(safe-area-inset-bottom, 0px);
+    box-shadow: 0 -4px 14px color-mix(in srgb, var(--text) 30%, transparent);
+  }
+  .tab {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    height: var(--nav-h); padding: 4px 2px; border: 0; border-radius: 10px;
+    color: color-mix(in srgb, var(--bg) 70%, transparent); font-size: 12px; font-weight: 700;
+  }
+  .tab svg { display: block; width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .tab.active { background: color-mix(in srgb, var(--bg) 16%, transparent); color: var(--bg); }
+  .tab:hover { color: var(--bg); }
+
+  /* Umschalter Übersicht/Lager/Waggon bleibt oben stehen */
+  .ort-wahl {
+    position: sticky; top: calc(env(safe-area-inset-top, 0px) + 6px); z-index: 6;
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--text) 18%, transparent), inset 0 0 0 3px var(--surface), inset 0 0 0 4px var(--border);
+  }
+  .ort-wahl button { font-size: 17px; padding: 10px 4px; min-height: 52px; }
+  .ort-wahl small { font-size: 11px; }
+
+  .info-box { font-size: 13px; padding: 8px 12px; }
+  .warn-box { padding: 10px 12px; }
+  .warn-box ul { padding-left: 16px; }
+
+  /* Suche und "+ Neu" in einer Zeile */
+  .toolbar { gap: 8px; }
+  .toolbar input[type=search] { flex: 1 1 0; min-width: 0; }
+  .toolbar .btn.primary { flex: none; min-height: 44px; }
+  .toolbar .check { flex-basis: 100%; order: 3; }
+  .nur-gross { display: none; }
+  .nur-handy { display: inline; }
+
+  /* Bestand als Karten: Name, dann Kennzahlen nebeneinander, dann große Knöpfe */
   #view-bestand table.list thead { display: none; }
-  #view-bestand table.list, #view-bestand .list tbody, #view-bestand .list tr, #view-bestand .list td { display: block; width: 100%; }
-  #view-bestand .list tr { padding: 10px 12px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; }
-  #view-bestand .list td { border: 0; padding: 0; text-align: left; }
-  #view-bestand .list td[data-k=name] { grid-column: 1 / -1; }
-  #view-bestand .list tr.gruppe { display: block; padding: 14px 12px 4px; }
-  #view-bestand .list tr.gruppe th { display: block; padding: 0; border: 0; }
-  #view-bestand .list td[data-label]::before { content: attr(data-label) ": "; color: var(--muted); font-weight: 400; }
-  #view-bestand .list td.num { font-weight: 700; }
-  #view-bestand .list td .badge { margin-left: 0; }
-  .seg span { padding: 8px 4px; font-size: 13px; }
-  #view-bestand .list td.actions { grid-column: 1 / -1; text-align: left; margin-top: 4px; }
+  #view-bestand table.list, #view-bestand .list tbody { display: block; width: 100%; }
+  #view-bestand .list tr {
+    display: grid; grid-template-columns: repeat(var(--spalten, 2), minmax(0, 1fr)); gap: 8px 12px;
+    padding: 12px 14px; border-bottom: 1px solid var(--border);
+  }
+  #view-bestand[data-ort=waggon] .list tr, #view-bestand[data-ort=uebersicht] .list tr { --spalten: 3; }
+  #view-bestand .list td { display: block; border: 0; padding: 0; text-align: left; min-width: 0; }
+  #view-bestand .list td[data-k=name] { grid-column: 1 / -1; font-size: 17px; }
+  #view-bestand .list td[data-label] { font-weight: 700; font-size: 16px; line-height: 1.3; }
+  #view-bestand .list td[data-label]::before {
+    content: attr(data-label); display: block; margin-bottom: 2px;
+    color: var(--muted); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  }
+  #view-bestand .list .kisten { display: block; font-size: 13px; }
+  #view-bestand .list td .badge { display: inline-block; margin: 6px 0 0; }
+  #view-bestand .list .bringen { font-size: 18px; }
+  #view-bestand .list td.actions { grid-column: 1 / -1; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
+  #view-bestand .list td.actions:empty { display: none; }
+  #view-bestand .list td.actions .btn { min-height: 44px; font-size: 15px; margin: 0; }
+  #view-bestand .list tr.gruppe { display: block; padding: 16px 14px 6px; }
+  #view-bestand .list tr.gruppe th { display: block; padding: 0; border: 0; background: none; }
+  #view-bestand .list input.zaehl { width: 100%; height: 48px; font-size: 20px; text-align: center; }
+
+  /* Verlauf als Karten */
+  #view-verlauf .toolbar select { flex: 1 1 140px; min-width: 0; }
+  #view-verlauf table.list thead { display: none; }
+  #view-verlauf table.list, #view-verlauf .list tbody { display: block; width: 100%; }
+  #view-verlauf .list tr {
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 12px;
+    grid-template-areas: "art datum" "name menge" "danach person" "notiz notiz";
+    padding: 12px 14px; border-bottom: 1px solid var(--border);
+  }
+  #view-verlauf .list td { display: block; border: 0; padding: 0; min-width: 0; }
+  #view-verlauf .v-datum { grid-area: datum; font-size: 12px; color: var(--muted); text-align: right; }
+  #view-verlauf .v-art { grid-area: art; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  #view-verlauf .v-name { grid-area: name; font-weight: 700; font-size: 17px; }
+  #view-verlauf .v-menge { grid-area: menge; font-weight: 800; font-size: 17px; }
+  #view-verlauf .v-danach { grid-area: danach; text-align: left; font-size: 13px; color: var(--muted); }
+  #view-verlauf .list td.v-person { grid-area: person; text-align: right; font-size: 13px; color: var(--muted); }
+  #view-verlauf .v-notiz { grid-area: notiz; font-size: 13px; color: var(--muted); font-style: italic; }
+  #view-verlauf .list td.v-notiz:empty { display: none; }
+
+  /* Einstellungen als Karten */
+  table.einst thead { display: none; }
+  table.einst, .einst tbody { display: block; width: 100%; }
+  .einst tr { display: grid; grid-template-columns: 1fr; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .einst tr.gruppe { display: block; padding: 16px 14px 6px; }
+  .einst tr.gruppe th { display: block; padding: 0; border: 0; background: none; }
+  .einst td { border: 0; padding: 0; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .einst td[data-k=name] { display: block; font-weight: 700; font-size: 17px; }
+  .einst td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 15px; }
+  .einst input[type=number] { width: 6em; height: 44px; font-size: 18px; }
+
+  /* Speichern-Leisten über der Navigationsleiste */
+  #zaehlLeiste, #bringenLeiste, #einstLeiste { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px); padding: 10px 12px; }
+  .aktion-leiste p { font-size: 13px; flex-basis: 100%; }
+  .aktion-leiste .btn { width: 100%; min-height: 48px; font-size: 16px; }
+  .toast { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 20px); }
+
+  /* Dialoge kommen als Blatt von unten */
+  dialog {
+    width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 16px 16px 0 0;
+    max-height: 92vh; overflow-y: auto; padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  dialog form { padding: 18px 16px 20px; }
+  .grid2 { grid-template-columns: 1fr; }
+  .seg span { padding: 10px 4px; font-size: 14px; min-height: 52px; display: flex; flex-direction: column; justify-content: center; }
+  menu .btn { flex: 1; min-height: 48px; }
+  menu .left { flex: none; }
+
+  .card .row .btn { flex: 1 1 100%; min-height: 44px; text-align: center; }
 }

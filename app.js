@@ -32,6 +32,11 @@ const lagerText = (a) => {
   const k = kistenText(a.bestand, a.proKiste);
   return mengeText(a.bestand, a.einheit) + (k ? ` (${k})` : '');
 };
+// HTML-Variante: Kistenangabe separat, damit sie am Handy in eine eigene Zeile rutschen kann
+const lagerHtml = (a) => {
+  const k = kistenText(a.bestand, a.proKiste);
+  return esc(mengeText(a.bestand, a.einheit)) + (k ? ` <span class="kisten">(${esc(k)})</span>` : '');
+};
 
 // Status: "krit" = Mindestbestand erreicht/unterschritten, "warn" = knapp darüber
 function stufe(menge, mindest) {
@@ -304,7 +309,7 @@ const zaehlFeld = (a) => `<input class="zaehl" type="number" min="0" step="1" in
 // Spalten je Ansicht: [Kopf, Zelle(a), Zahlenspalte?]
 const SPALTEN = {
   lager: [
-    ['Im Lager', (a) => `${esc(lagerText(a))}${statusLager(a) === 'ok' ? '' : ` ${badge('lager', statusLager(a))}`}`, true],
+    ['Im Lager', (a) => `${lagerHtml(a)}${statusLager(a) === 'ok' ? '' : ` ${badge('lager', statusLager(a))}`}`, true],
     ['Zum Waggon bringen', zumWaggonText, true],
   ],
   waggon: [
@@ -313,7 +318,7 @@ const SPALTEN = {
     ['Nachfüllen', (a) => `<span data-nachfuellen="${a.id}">${zumWaggonText(a)}</span>`, true],
   ],
   uebersicht: [
-    ['Lager', (a) => `${esc(lagerText(a))}${statusLager(a) === 'ok' ? '' : ` ${badge('lager', statusLager(a))}`}`, true],
+    ['Lager', (a) => `${lagerHtml(a)}${statusLager(a) === 'ok' ? '' : ` ${badge('lager', statusLager(a))}`}`, true],
     ['Waggon', (a) => esc(mengeText(a.waggon, a.einheit)), true],
     ['Nachfüllen', zumWaggonText, true],
   ],
@@ -382,15 +387,23 @@ function renderWarnungen() {
   const bringen = ort === 'uebersicht' ? state.artikel.filter((a) => nachfuellen(a) > 0).sort(byName) : [];
   const box = $('#warnungen');
   box.hidden = !nachbestellen.length && !bringen.length;
+  if (box.hidden) return;
+  // Kurzzeile zum Auf- und Zuklappen (am Handy anfangs zu, am PC offen)
+  const kurz = [
+    nachbestellen.length ? `⚠️ ${nachbestellen.length} nachbestellen` : '',
+    bringen.length ? `→ ${bringen.length} zum Waggon bringen` : '',
+  ].filter(Boolean).join(' · ');
   const teil = (liste, titel, text) => (liste.length ? `<div class="warn-teil">
       <strong>${titel} (${liste.length})</strong>
       <ul>${liste.map((a) => `<li>${esc(a.name)}: ${text(a)}</li>`).join('')}</ul>
     </div>` : '');
-  box.innerHTML = teil(nachbestellen, '⚠️ Lager: bitte nachbestellen',
-    (a) => `${fmt(a.bestand)} von mind. ${esc(mengeText(a.mindest, a.einheit))}`)
+  box.innerHTML = `<summary>${kurz}</summary>`
+    + teil(nachbestellen, '⚠️ Lager: bitte nachbestellen',
+      (a) => `${fmt(a.bestand)} von mind. ${esc(mengeText(a.mindest, a.einheit))}`)
     + teil(bringen, '→ Vom Lager zum Waggon bringen',
       (a) => esc(mengeText(nachfuellen(a), a.einheit)));
 }
+$('#warnungen').open = window.matchMedia('(min-width: 681px)').matches;
 
 // ---------- Einstellungen: Mindeststückzahlen und Stück pro Kiste ----------
 function renderEinstellungen() {
@@ -431,13 +444,13 @@ function renderVerlauf() {
     const vorz = { ein: '+', aus: '', verkauf: '−', korrektur: '+' }[b.typ] ?? '';
     const danach = `Lager ${fmt(b.bestandDanach)}${b.waggonDanach == null ? '' : ` · Waggon ${fmt(b.waggonDanach)}`}`;
     return `<tr>
-      <td>${fmtDate(b.datum)}</td>
-      <td>${name}</td>
-      <td class="typ-${b.typ}">${TYP_LABEL[b.typ] ?? esc(b.typ)}</td>
-      <td class="num">${vorz}${esc(mengeText(b.menge, a ? a.einheit : ''))}</td>
-      <td class="num">${danach}</td>
-      <td>${esc(b.person || '–')}</td>
-      <td>${esc(b.notiz || '')}</td>
+      <td class="v-datum">${fmtDate(b.datum)}</td>
+      <td class="v-name">${name}</td>
+      <td class="v-art typ-${b.typ}">${TYP_LABEL[b.typ] ?? esc(b.typ)}</td>
+      <td class="v-menge num">${vorz}${esc(mengeText(b.menge, a ? a.einheit : ''))}</td>
+      <td class="v-danach num">${danach}</td>
+      <td class="v-person">${esc(b.person || '–')}</td>
+      <td class="v-notiz">${esc(b.notiz || '')}</td>
     </tr>`;
   }).join('');
   $('#verlaufLeer').hidden = liste.length > 0;

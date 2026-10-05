@@ -23,10 +23,10 @@
       </div>
     </div>
     <nav class="tabs" role="tablist" id="tabs">
-      <button class="tab active" data-view="bestand" role="tab">Bestand</button>
-      <button class="tab" data-view="verlauf" role="tab">Verlauf</button>
-      <button class="tab" data-view="einstellungen" role="tab">Einstellungen</button>
-      <button class="tab" data-view="daten" role="tab">Daten</button>
+      <button class="tab active" data-view="bestand" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2h4v4l2 3v13H8V9l2-3z"/><path d="M8 13h8"/></svg><span>Bestand</span></button>
+      <button class="tab" data-view="verlauf" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Verlauf</span></button>
+      <button class="tab" data-view="einstellungen" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span>Einstellungen</span></button>
+      <button class="tab" data-view="daten" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M7 10l5 5 5-5M4 17v3h16v-3"/></svg><span>Daten</span></button>
     </nav>
   </header>
 
@@ -64,12 +64,12 @@
         <button type="button" data-ort="waggon" aria-pressed="false">Waggon<small>Zählen</small></button>
       </div>
 
-      <div id="warnungen" class="warn-box" hidden></div>
+      <details id="warnungen" class="warn-box" hidden></details>
 
       <div class="toolbar">
         <input id="suche" type="search" placeholder="Getränk oder Sorte suchen …" autocomplete="off">
         <label class="check"><input id="nurKritisch" type="checkbox"> <span id="nurKritischText">nur mit Handlungsbedarf</span></label>
-        <button id="btnNeu" class="btn primary">+ Neues Getränk</button>
+        <button id="btnNeu" class="btn primary" aria-label="Neues Getränk">+ <span class="nur-gross">Neues Getränk</span><span class="nur-handy">Neu</span></button>
       </div>
 
       <div class="table-wrap">
