@@ -431,22 +431,22 @@ const SPALTEN = {
     ['Im Lager', (a) => `${lagerHtml(a)}${statusLager(a) === 'ok' ? '' : ` ${badge('lager', statusLager(a))}`}`, true],
     ['Zum Waggon bringen', zumWaggonText, true],
   ],
+  // Übersicht: reine Anzeige – nur was im Lager und im Waggon ist
   uebersicht: [
-    ['Lager', (a) => `${lagerHtml(a)}${statusLager(a) === 'ok' ? '' : ` ${badge('lager', statusLager(a))}`}`, true],
+    ['Lager', lagerHtml, true],
     ['Waggon', (a) => esc(mengeText(a.waggon, a.einheit)), true],
-    ['Nachfüllen', zumWaggonText, true],
   ],
 };
 const KNOEPFE = {
   lager: (a) => `<button class="btn small in" data-buchen="${a.id}" data-typ="ein">+ Lieferung</button>
         <button class="btn small move" data-bringen="${a.id}" ${nachfuellen(a) && a.bestand ? '' : 'disabled'}>✓ Gebracht</button>`,
   waggon: () => '',
-  uebersicht: (a) => `<button class="btn small" data-buchen="${a.id}" data-typ="ein">Buchen</button>`,
+  uebersicht: () => '',
 };
 const istKritisch = (a) => ({
   lager: statusLager(a) === 'krit' || nachfuellen(a) > 0,
   waggon: nachfuellen(a) > 0,
-  uebersicht: statusLager(a) === 'krit' || nachfuellen(a) > 0,
+  uebersicht: false,
 }[ort]);
 
 // Eingetippte, noch nicht gespeicherte Zahlen im Waggon über ein Neuzeichnen retten
@@ -475,26 +475,28 @@ function renderBestand() {
     : 'Trag ein, <strong>wie viel noch im Waggon ist</strong>. Graue Zahl = letzter Stand, leere Felder bleiben unverändert.';
   $('#btnZaehlung').textContent = waggonModus === 'verbraucht' ? 'Verbrauch speichern' : 'Zählung speichern';
   $('#btnZaehlung').disabled = true;
-  $('#bestandKopf').innerHTML = `<tr><th>Getränk</th>${spalten.map(([kopf, , num]) => `<th class="${num ? 'num' : ''}">${kopf}</th>`).join('')}<th class="actions"></th></tr>`;
+  const nurAnzeige = ort === 'uebersicht';
+  $('#bestandKopf').innerHTML = `<tr><th>Getränk</th>${spalten.map(([kopf, , num]) => `<th class="${num ? 'num' : ''}">${kopf}</th>`).join('')}${nurAnzeige ? '' : '<th class="actions"></th>'}</tr>`;
 
-  const q = $('#suche').value.trim().toLowerCase();
-  const nurKrit = $('#nurKritisch').checked;
+  // In der Übersicht gibt es keine Suche/Filter – immer alles zeigen
+  const q = nurAnzeige ? '' : $('#suche').value.trim().toLowerCase();
+  const nurKrit = !nurAnzeige && $('#nurKritisch').checked;
   const liste = state.artikel
     .filter((a) => !q || [a.name, sorteName(a.sorte)].some((t) => (t || '').toLowerCase().includes(q)))
     .filter((a) => !nurKrit || istKritisch(a));
 
   const zeile = (a) => `<tr class="${istKritisch(a) ? 'krit' : ''}">
-      <td data-k="name">${nameHtml(a)}
-        ${a.notiz ? `<span class="small-note">${esc(a.notiz)}</span>` : ''}</td>
+      <td data-k="name">${nurAnzeige ? `<span class="name-text">${esc(a.name)}</span>` : nameHtml(a)}
+        ${a.notiz && !nurAnzeige ? `<span class="small-note">${esc(a.notiz)}</span>` : ''}</td>
       ${spalten.map(([kopf, zelle, num]) => `<td class="${num ? 'num' : ''}" data-label="${kopf}">${zelle(a)}</td>`).join('')}
-      <td class="actions">${KNOEPFE[ort](a)}</td>
+      ${nurAnzeige ? '' : `<td class="actions">${KNOEPFE[ort](a)}</td>`}
     </tr>`;
   // Nach Sorte gruppiert; unbekannte Sorten landen unter "Sonstiges"
   const gruppe = (a) => (SORTEN.includes(a.sorte || '') ? a.sorte || '' : '');
   $('#artikelListe').innerHTML = SORTEN.map((sorte) => {
     const inGruppe = liste.filter((a) => gruppe(a) === sorte).sort(byName);
     if (!inGruppe.length) return '';
-    return `<tr class="gruppe"><th colspan="${spalten.length + 2}">${esc(sorteName(sorte))}</th></tr>` + inGruppe.map(zeile).join('');
+    return `<tr class="gruppe"><th colspan="${spalten.length + (nurAnzeige ? 1 : 2)}">${esc(sorteName(sorte))}</th></tr>` + inGruppe.map(zeile).join('');
   }).join('');
 
   // Gerettete Eingaben wieder einsetzen (inkl. Vorschau "nachfüllen")
@@ -512,13 +514,6 @@ function renderBestand() {
   $('#bringenLeiste').hidden = ort !== 'lager' || !offen.length;
   $('#btnAllesGebracht').textContent = `✓ Alles zum Waggon gebracht (${offen.length} ${offen.length === 1 ? 'Getränk' : 'Getränke'})`;
 
-  // Übersicht: Kacheln + Karten statt Tabelle
-  const alsKarten = ort === 'uebersicht' && liste.length > 0;
-  $('#bestandTabelle').hidden = alsKarten;
-  $('#karten').hidden = !alsKarten;
-  if (alsKarten) renderKarten(liste, gruppe);
-  renderKacheln();
-
   const leer = $('#leer');
   leer.hidden = liste.length > 0;
   leer.innerHTML = state.artikel.length
@@ -530,7 +525,7 @@ function renderBestand() {
        Forst, Prosecco und Aperol – Mindeststückzahlen stellst du danach unter „Einstellungen“ ein.</span>`;
 }
 
-// ---------- Übersicht: Kennzahlen und Karten ----------
+// ---------- Zeitangaben ("vor 5 Min.", "gestern 14:30") ----------
 function wannText(iso) {
   const d = new Date(iso);
   const min = Math.round((Date.now() - d) / 60000);
@@ -541,80 +536,6 @@ function wannText(iso) {
   if (d.toDateString() === new Date().toDateString()) return `heute ${uhr}`;
   if (d.toDateString() === gestern) return `gestern ${uhr}`;
   return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + ` ${uhr}`;
-}
-
-function renderKacheln() {
-  const box = $('#kacheln');
-  box.hidden = ort !== 'uebersicht' || !state.artikel.length;
-  if (box.hidden) return;
-  const bringen = state.artikel.filter((a) => nachfuellen(a) > 0).sort(byName);
-  const stueck = round(bringen.reduce((sum, a) => sum + nachfuellen(a), 0));
-  const nachbestellen = state.artikel.filter((a) => statusLager(a) === 'krit').sort(byName);
-  const heute = new Date().toDateString();
-  const verkauftHeute = state.buchungen.filter((b) => b.typ === 'verkauf' && new Date(b.datum).toDateString() === heute);
-  const heuteStueck = round(verkauftHeute.reduce((sum, b) => sum + b.menge, 0));
-  const letzte = [...state.buchungen].reverse().find((b) => b.typ === 'verkauf' || b.typ === 'korrektur');
-  const namen = (liste) => esc(liste.slice(0, 3).map((a) => a.name).join(', ') + (liste.length > 3 ? ` +${liste.length - 3}` : ''));
-
-  // [Ziel beim Antippen, Überschrift, große Zahl, Unterzeile, Zustand]
-  const kacheln = [
-    ['lager', 'Zum Waggon bringen', bringen.length ? fmt(stueck) : '✓',
-      bringen.length ? `Stück · ${namen(bringen)}` : 'Waggon ist voll', bringen.length ? 'move' : 'ok'],
-    ['lager', 'Nachbestellen', nachbestellen.length ? String(nachbestellen.length) : '✓',
-      nachbestellen.length ? namen(nachbestellen) : 'Lager reicht aus', nachbestellen.length ? 'krit' : 'ok'],
-    ['verlauf', 'Heute verkauft', fmt(heuteStueck),
-      heuteStueck ? `Stück · ${verkauftHeute.length} ${verkauftHeute.length === 1 ? 'Buchung' : 'Buchungen'}` : 'noch nichts verkauft', ''],
-    ['waggon', 'Letzte Zählung', letzte ? wannText(letzte.datum) : '–',
-      letzte ? esc(letzte.person || 'Waggon') : 'noch nicht gezählt', ''],
-  ];
-  box.innerHTML = kacheln.map(([ziel, titel, zahl, unter, zustand]) => `
-    <button type="button" class="kachel ${zustand}" data-ziel="${ziel}">
-      <span class="kachel-titel">${titel}</span>
-      <span class="kachel-zahl">${zahl}</span>
-      <span class="kachel-unter">${unter}</span>
-    </button>`).join('');
-}
-
-// Füllstand als Balken; Text daneben trägt die Zahl, die Farbe nur den Zustand
-const meter = (pct, klasse, label, markePct = null) => `<div class="meter ${klasse}" role="img" aria-label="${esc(label)}">
-    <span style="width:${Math.max(0, Math.min(100, pct)).toFixed(1)}%"></span>
-    ${markePct == null ? '' : `<i style="left:${Math.min(100, markePct).toFixed(1)}%" title="Mindestbestand"></i>`}
-  </div>`;
-
-function renderKarten(liste, gruppe) {
-  const karte = (a) => {
-    const n = nachfuellen(a);
-    const sl = statusLager(a);
-    const soll = a.mindestWaggon || 0;
-    const wPct = soll > 0 ? (a.waggon / soll) * 100 : (a.waggon > 0 ? 100 : 0);
-    const lMax = Math.max(a.mindest * 2, a.bestand, 1);
-    const einheiten = esc(PLURAL[a.einheit] ?? a.einheit);
-    return `<article class="karte ${n || sl === 'krit' ? 'krit' : ''}">
-      <header>
-        ${nameHtml(a)}
-        <button class="btn small" data-buchen="${a.id}" data-typ="ein">Buchen</button>
-      </header>
-      <div class="karte-zeile">
-        <span class="karte-lbl">Waggon</span>
-        <span class="karte-wert">${fmt(a.waggon)}${soll ? `<span class="still"> / ${fmt(soll)}</span>` : ''} <small>${einheiten}</small></span>
-      </div>
-      ${meter(wPct, n ? 'move' : 'ok', `Waggon: ${fmt(a.waggon)} von ${fmt(soll)}`)}
-      <p class="karte-info">${n ? `<strong class="bringen">→ ${esc(mengeText(n, a.einheit))} nachfüllen</strong>`
-        : soll ? '✓ voll' : 'keine Mindestmenge eingestellt'}</p>
-      <div class="karte-zeile">
-        <span class="karte-lbl">Lager</span>
-        <span class="karte-wert">${lagerHtml(a)}</span>
-      </div>
-      ${meter((a.bestand / lMax) * 100, sl, `Lager: ${fmt(a.bestand)}, Mindestbestand ${fmt(a.mindest)}`, a.mindest ? (a.mindest / lMax) * 100 : null)}
-      <p class="karte-info">${sl === 'ok' ? (a.mindest ? `mind. ${fmt(a.mindest)}` : '&nbsp;') : badge('lager', sl)}</p>
-    </article>`;
-  };
-  $('#karten').innerHTML = SORTEN.map((sorte) => {
-    const inGruppe = liste.filter((a) => gruppe(a) === sorte).sort(byName);
-    if (!inGruppe.length) return '';
-    return `<section class="karten-gruppe"><h3>${esc(sorteName(sorte))}</h3>
-      <div class="karten">${inGruppe.map(karte).join('')}</div></section>`;
-  }).join('');
 }
 
 function renderWarnungen() {
@@ -1268,17 +1189,6 @@ $('#btnEinstSpeichern').addEventListener('click', async () => {
     btn.disabled = false;
     hinweis('Nicht gespeichert', err.message);
   }
-});
-
-$('#karten').addEventListener('click', (e) => {
-  const edit = e.target.closest('[data-edit]');
-  if (edit) return openArtikel(edit.dataset.edit);
-  const b = e.target.closest('[data-buchen]');
-  if (b) openBuchung(b.dataset.buchen, b.dataset.typ);
-});
-$('#kacheln').addEventListener('click', (e) => {
-  const k = e.target.closest('[data-ziel]');
-  if (k) zeigeAnsicht(k.dataset.ziel);
 });
 
 $('#artikelListe').addEventListener('click', (e) => {
