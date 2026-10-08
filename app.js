@@ -654,9 +654,9 @@ async function nutzerLaden() {
   }
   const wann = (iso, leer) => (iso ? esc(wannText(iso)) : `<span class="still">${leer}</span>`);
   $('#nutzerListe').innerHTML = data.map((n) => `<tr>
-      <td data-k="name"><strong>${esc(n.email)}</strong>${n.id === angemeldeterNutzer?.id ? ' <span class="small-note">(du)</span>' : ''}</td>
+      <td data-k="name"><strong>${esc(anzeigeName(n.email))}</strong>${n.id === angemeldeterNutzer?.id ? ' <span class="small-note">(du)</span>' : ''}</td>
       <td data-label="Rolle">
-        <select data-rolle-fuer="${n.id}" aria-label="Rolle von ${esc(n.email)}">
+        <select data-rolle-fuer="${n.id}" aria-label="Rolle von ${esc(anzeigeName(n.email))}">
           <option value="admin" ${n.rolle === 'admin' ? 'selected' : ''}>Admin</option>
           <option value="mitarbeiter" ${n.rolle !== 'admin' ? 'selected' : ''}>Mitarbeiter</option>
         </select>
@@ -763,6 +763,16 @@ function renderDatalists() {
   $('#personenListe').innerHTML = uniq(state.buchungen.map((b) => b.person))
     .map((p) => `<option value="${esc(p)}">`).join('');
 }
+
+// ---------- Benutzernamen statt E-Mail ----------
+// Supabase braucht eine E-Mail-Adresse. Benutzer werden als "name@staben.lager" angelegt
+// (keine echte Adresse, es werden nie E-Mails verschickt) und melden sich nur mit "name" an.
+const BENUTZER_DOMAIN = CFG.benutzerDomain || 'staben.lager';
+const loginAdresse = (eingabe) => {
+  const v = eingabe.trim();
+  return v.includes('@') ? v : `${v.toLowerCase()}@${BENUTZER_DOMAIN}`;
+};
+const anzeigeName = (email = '') => (email.toLowerCase().endsWith(`@${BENUTZER_DOMAIN}`) ? email.split('@')[0] : email);
 
 // ---------- Rückfragen (eigener Dialog statt confirm/alert/prompt) ----------
 // Liefert true, wenn bestätigt. Mit "eingabe" muss das Wort zur Sicherheit eingetippt werden.
@@ -1388,7 +1398,7 @@ async function angemeldet(session) {
   const user = session.user;
   angemeldeterNutzer = { id: user.id, email: user.email, user_metadata: user.user_metadata || {}, rolle: user.rolle };
   $('#userBox').hidden = false;
-  $('#userName').textContent = user.user_metadata?.name || user.email;
+  $('#userName').textContent = user.user_metadata?.name || anzeigeName(user.email);
   letztePerson ||= user.user_metadata?.name || user.email.split('@')[0];
   zeigeAnsicht('laden');
   // Ohne Netz: zuletzt bekannte Rolle dieses Benutzers (aus dem gespeicherten Stand)
@@ -1430,10 +1440,10 @@ $('#formLogin').addEventListener('submit', async (e) => {
   const btn = e.target.querySelector('button');
   btn.disabled = true;
   fehler.hidden = true;
-  const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.passwort.value });
+  const { error } = await sb.auth.signInWithPassword({ email: loginAdresse(f.email.value), password: f.passwort.value });
   btn.disabled = false;
   if (error) {
-    fehler.textContent = /invalid/i.test(error.message) ? 'E-Mail oder Passwort falsch.' : error.message;
+    fehler.textContent = /invalid/i.test(error.message) ? 'Benutzername oder Passwort falsch.' : error.message;
     fehler.hidden = false;
   } else {
     f.passwort.value = '';

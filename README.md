@@ -54,8 +54,9 @@ Solange in `config.js` nichts eingetragen ist, läuft die App im lokalen Modus.
    [`supabase/schema.sql`](supabase/schema.sql) einfügen und **Run** klicken.
 3. **Authentication → Sign In / Providers**: *Allow new users to sign up* **ausschalten**
    (damit sich niemand selbst registrieren kann).
-4. **Authentication → Users → Add user → Create new user**: für jede Person E-Mail und
-   Passwort anlegen (*Auto Confirm User* anhaken).
+4. **Authentication → Users → Add user → Create new user**: für jede Person als E-Mail
+   `name@staben.lager` und ein Passwort anlegen (*Auto Confirm User* anhaken). Angemeldet wird in der
+   App dann nur mit dem **Benutzernamen** (`name`). Echte E-Mail-Adressen funktionieren ebenfalls.
 5. **Project Settings → API** (bzw. *Data API* / *API Keys*): die **Project URL** und den
    **anon / publishable key** kopieren und in [`config.js`](config.js) eintragen.
 6. Änderung committen – fertig. Beim Öffnen der App erscheint nun die Anmeldung.
