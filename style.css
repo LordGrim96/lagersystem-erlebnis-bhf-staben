@@ -255,6 +255,57 @@ table.list { width: 100%; border-collapse: collapse; }
   text-transform: none; letter-spacing: 0; color: var(--move); border: 1px dashed var(--move);
 }
 .einst-daten { margin-top: 18px; }
+
+/* ---------- Übersicht: Kacheln ---------- */
+.kacheln { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.kachel {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; cursor: pointer; min-width: 0;
+  font: inherit; color: var(--text); background: var(--surface);
+  border: 2px solid var(--text); border-radius: 8px; padding: 12px 14px;
+  box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 4px var(--border);
+}
+.kachel:hover { filter: brightness(.97); }
+.kachel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.kachel-titel { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.kachel-zahl { font-family: var(--font-display); font-size: 34px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kachel-unter { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kachel.move .kachel-zahl { color: var(--move); }
+.kachel.krit .kachel-zahl { color: var(--crit); }
+.kachel.ok .kachel-zahl { color: var(--ok); }
+
+/* ---------- Übersicht: Karten je Getränk ---------- */
+.karten-gruppe + .karten-gruppe { margin-top: 18px; }
+.karten-gruppe h3 {
+  margin: 0 0 8px; font-family: var(--font-display); font-weight: 400; font-size: 19px; color: var(--accent);
+  border-bottom: 1px solid var(--text); padding-bottom: 4px;
+}
+.karten-gruppe h3::before { content: "✦ "; font-size: 13px; vertical-align: 2px; }
+.karten { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.karte {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px;
+}
+.karte.krit { border-color: var(--crit); box-shadow: 0 0 0 1px var(--crit); }
+.karte header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.karte header .name-link { font-size: 17px; min-width: 0; overflow-wrap: anywhere; }
+.karte-zeile { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.karte-lbl { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.karte-wert { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.karte-wert small { font-weight: 500; color: var(--muted); }
+.karte-info { margin: 0; font-size: 13px; color: var(--muted); min-height: 1.4em; }
+.karte-info .badge { transform: none; }
+
+/* Füllstandsbalken */
+.meter {
+  position: relative; height: 10px; border-radius: 5px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+.meter > span { display: block; height: 100%; border-radius: 5px; background: var(--muted); min-width: 4px; }
+.meter.move > span { background: var(--move); }
+.meter.ok > span { background: var(--ok); }
+.meter.warn > span { background: var(--warn); }
+.meter.krit > span { background: var(--crit); }
+.meter > i { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text); border-radius: 1px; }
 .frage-text { margin: 0; white-space: pre-line; }
 .muted-text { color: var(--muted); margin: 0; }
 .btn:disabled { opacity: .6; cursor: progress; }
@@ -344,6 +395,10 @@ menu .left { margin-right: auto; }
   .toolbar input[type=search] { flex: 1 1 0; min-width: 0; }
   .toolbar .btn.primary { flex: none; min-height: 44px; }
   .toolbar .check { flex-basis: 100%; order: 3; }
+  .kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kachel { padding: 10px 12px; }
+  .kachel-zahl { font-size: 28px; }
+  .karten { grid-template-columns: 1fr; }
   .nur-gross { display: none; }
   .nur-handy { display: inline; }
 
