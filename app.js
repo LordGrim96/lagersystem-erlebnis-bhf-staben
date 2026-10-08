@@ -396,11 +396,17 @@ const zumWaggonText = (a) => {
   return `<strong class="bringen">${esc(mengeText(n, a.einheit))}</strong>${fehlt}`;
 };
 // Zählfeld im Waggon: "noch da" → nachfüllen bis zur Mindeststückzahl
-const zaehlFeld = (a) => `<input class="zaehl" type="number" min="0" step="1" inputmode="numeric"
-  data-zaehl="${a.id}" placeholder="${fmt(a.waggon)}" aria-label="${esc(a.name)}: noch im Waggon">`;
+// Zahlenfeld mit − und + (große Knöpfe fürs Handy; Eintippen geht weiterhin)
+const stepper = (feld, name) => `<div class="stepper">
+    <button type="button" class="schritt" data-schritt="-1" aria-label="${esc(name)}: eins weniger">−</button>
+    ${feld}
+    <button type="button" class="schritt" data-schritt="1" aria-label="${esc(name)}: eins mehr">+</button>
+  </div>`;
+const zaehlFeld = (a) => stepper(`<input class="zaehl" type="number" min="0" step="1" inputmode="numeric"
+  data-zaehl="${a.id}" placeholder="${fmt(a.waggon)}" aria-label="${esc(a.name)}: noch im Waggon">`, a.name);
 // Verbraucht-Feld: so viel wurde aus dem Waggon verkauft/verbraucht
-const verbrauchtFeld = (a) => `<input class="zaehl" type="number" min="0" step="1" inputmode="numeric"
-  data-verbraucht="${a.id}" placeholder="0" aria-label="${esc(a.name)}: verbraucht">`;
+const verbrauchtFeld = (a) => stepper(`<input class="zaehl" type="number" min="0" step="1" inputmode="numeric"
+  data-verbraucht="${a.id}" placeholder="0" aria-label="${esc(a.name)}: verbraucht">`, a.name);
 const nachfuellenZelle = (a) => `<span data-nachfuellen="${a.id}">${zumWaggonText(a)}</span>`;
 const WAGGON_SPALTEN = {
   verbraucht: [
@@ -1082,6 +1088,35 @@ $('#artikelListe').addEventListener('input', (e) => {
   document.querySelector(`[data-nachfuellen="${a.id}"]`).innerHTML = zumWaggonText({ ...a, waggon: da });
   feld.closest('tr').classList.toggle('krit', nachfuellen({ ...a, waggon: da }) > 0);
   $('#btnZaehlung').disabled = !document.querySelector('[data-zaehl]:not(:placeholder-shown), [data-verbraucht]:not(:placeholder-shown)');
+});
+
+// − / + neben den Zahlenfeldern; gedrückt halten zählt schnell weiter
+function schritt(knopf) {
+  const feld = knopf.closest('.stepper').querySelector('input');
+  // Leeres Zählfeld startet beim letzten Stand (Platzhalter), Verbraucht-Feld bei 0
+  const basis = feld.value === '' ? Number(String(feld.placeholder).replace(/\./g, '').replace(',', '.')) || 0 : Number(feld.value) || 0;
+  feld.value = Math.max(0, round(basis + Number(knopf.dataset.schritt)));
+  feld.dispatchEvent(new Event('input', { bubbles: true }));
+}
+let halteTimer = null;
+let halteIntervall = null;
+let letzterDruck = 0; // Zeitpunkt des letzten Fingertipps/Mausdrucks auf − oder +
+const halteStopp = () => { clearTimeout(halteTimer); clearInterval(halteIntervall); halteTimer = halteIntervall = null; };
+$('#artikelListe').addEventListener('pointerdown', (e) => {
+  const knopf = e.target.closest('[data-schritt]');
+  if (!knopf) return;
+  e.preventDefault(); // kein Doppeltipp-Zoom, Fokus bleibt
+  letzterDruck = Date.now();
+  schritt(knopf);
+  halteTimer = setTimeout(() => { halteIntervall = setInterval(() => schritt(knopf), 90); }, 450);
+});
+// Loslassen irgendwo (auch außerhalb des Knopfs) beendet das schnelle Zählen
+['pointerup', 'pointercancel', 'blur'].forEach((ev) => window.addEventListener(ev, halteStopp));
+$('#artikelListe').addEventListener('pointerout', (e) => { if (e.target.closest('[data-schritt]')) halteStopp(); });
+// Tastatur (Enter/Leertaste auf dem Knopf); der Klick nach einem Fingertipp zählt nicht doppelt
+$('#artikelListe').addEventListener('click', (e) => {
+  const knopf = e.target.closest('[data-schritt]');
+  if (knopf && Date.now() - letzterDruck > 800) schritt(knopf);
 });
 
 $('#waggonModus').addEventListener('click', (e) => {

@@ -274,6 +274,21 @@ body[data-rolle="mitarbeiter"] .nur-admin { display: none !important; }
 .modus-wahl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 input.zaehl.fehler { border-color: var(--crit); color: var(--crit); background: var(--crit-bg); }
 
+/* − Zahl + */
+.stepper { display: inline-flex; align-items: stretch; gap: 6px; }
+.stepper input.zaehl { width: 4.2em; text-align: center; -moz-appearance: textfield; appearance: textfield; }
+.stepper input.zaehl::-webkit-outer-spin-button,
+.stepper input.zaehl::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.schritt {
+  flex: none; width: 40px; min-height: 40px; padding: 0; cursor: pointer;
+  font: inherit; font-size: 22px; font-weight: 800; line-height: 1;
+  color: var(--text); background: var(--bg); border: 2px solid var(--text); border-radius: 8px;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.schritt[data-schritt="1"] { background: var(--text); color: var(--bg); }
+.schritt:active { transform: scale(.94); }
+.schritt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* ---------- Übersicht: Kacheln ---------- */
 .kacheln { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
 .kachel {
@@ -451,7 +466,13 @@ menu .left { margin-right: auto; }
   #view-bestand .list td.actions .btn { min-height: 44px; font-size: 15px; margin: 0; }
   #view-bestand .list tr.gruppe { display: block; padding: 16px 14px 6px; }
   #view-bestand .list tr.gruppe th { display: block; padding: 0; border: 0; background: none; }
-  #view-bestand .list input.zaehl { width: 100%; height: 48px; font-size: 20px; text-align: center; }
+  #view-bestand .list input.zaehl { width: 100%; height: 52px; font-size: 22px; text-align: center; }
+  /* Waggon am Handy: Bestand und Nachfüllen oben, − Zahl + darunter über die ganze Breite */
+  #view-bestand[data-ort=waggon] .list tr { --spalten: 2; }
+  #view-bestand[data-ort=waggon] .list td:has(.stepper) { grid-column: 1 / -1; order: 3; }
+  #view-bestand[data-ort=waggon] .list td.actions { order: 4; }
+  #view-bestand .list .stepper { display: grid; grid-template-columns: 56px 1fr 56px; gap: 8px; width: 100%; }
+  #view-bestand .list .schritt { width: auto; min-height: 52px; font-size: 26px; }
 
   /* Verlauf als Karten */
   #view-verlauf .toolbar select { flex: 1 1 140px; min-width: 0; }
