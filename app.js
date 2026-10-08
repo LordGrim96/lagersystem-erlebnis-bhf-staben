@@ -343,8 +343,25 @@ const BEREICHE = [...ORTE, 'verlauf', 'einstellungen'];
 let ort = 'waggon';
 let aktiveAnsicht = 'waggon';
 
+// Rollen: Admins sehen alles, Mitarbeiter nur den Waggon (geprüft wird zusätzlich in der Datenbank)
+let rolle = 'admin';
+let rollenUpdateFehlt = false; // Datenbank noch ohne Rollen-Funktionen (SQL-Update nicht ausgeführt)
+const istAdmin = () => rolle === 'admin';
+// Waggon: "verbraucht" eintragen (alle) oder "noch da" zählen (nur Admin)
+let waggonModus = 'verbraucht';
+
+function rolleAnwenden() {
+  document.body.dataset.rolle = rolle;
+  if (!istAdmin()) {
+    waggonModus = 'verbraucht';
+    if (aktiveAnsicht !== 'waggon') zeigeAnsicht('waggon');
+  }
+  render();
+}
+
 function zeigeAnsicht(name) {
   if (name === 'bestand') name = ort;
+  if (!istAdmin() && BEREICHE.includes(name)) name = 'waggon';
   if (ORTE.includes(name) && name !== ort) {
     ort = name;
     renderBestand();
@@ -357,7 +374,8 @@ function zeigeAnsicht(name) {
     t.classList.toggle('active', t.dataset.view === name);
     t.setAttribute('aria-selected', t.dataset.view === name);
   });
-  $('#tabs').hidden = name === 'login' || name === 'laden';
+  $('#tabs').hidden = name === 'login' || name === 'laden' || !istAdmin();
+  if (name === 'einstellungen') nutzerLaden();
   window.scrollTo(0, 0);
 }
 
@@ -380,17 +398,32 @@ const zumWaggonText = (a) => {
 // Zählfeld im Waggon: "noch da" → nachfüllen bis zur Mindeststückzahl
 const zaehlFeld = (a) => `<input class="zaehl" type="number" min="0" step="1" inputmode="numeric"
   data-zaehl="${a.id}" placeholder="${fmt(a.waggon)}" aria-label="${esc(a.name)}: noch im Waggon">`;
+// Verbraucht-Feld: so viel wurde aus dem Waggon verkauft/verbraucht
+const verbrauchtFeld = (a) => `<input class="zaehl" type="number" min="0" step="1" inputmode="numeric"
+  data-verbraucht="${a.id}" placeholder="0" aria-label="${esc(a.name)}: verbraucht">`;
+const nachfuellenZelle = (a) => `<span data-nachfuellen="${a.id}">${zumWaggonText(a)}</span>`;
+const WAGGON_SPALTEN = {
+  verbraucht: [
+    ['Im Waggon', (a) => `<span data-imwaggon="${a.id}">${esc(mengeText(a.waggon, a.einheit))}</span>`, true],
+    ['Verbraucht', verbrauchtFeld, true],
+    ['Nachfüllen', nachfuellenZelle, true],
+  ],
+  zaehlen: [
+    ['Mindestens', (a) => esc(mengeText(a.mindestWaggon || 0, a.einheit)), true],
+    ['Noch da', zaehlFeld, true],
+    ['Nachfüllen', nachfuellenZelle, true],
+  ],
+};
+// Name: für Admins zum Bearbeiten antippbar, für Mitarbeiter nur Text
+const nameHtml = (a) => (istAdmin()
+  ? `<button class="name-link" data-edit="${a.id}" title="Bearbeiten">${esc(a.name)}</button>`
+  : `<span class="name-text">${esc(a.name)}</span>`);
 
 // Spalten je Ansicht: [Kopf, Zelle(a), Zahlenspalte?]
 const SPALTEN = {
   lager: [
     ['Im Lager', (a) => `${lagerHtml(a)}${statusLager(a) === 'ok' ? '' : ` ${badge('lager', statusLager(a))}`}`, true],
     ['Zum Waggon bringen', zumWaggonText, true],
-  ],
-  waggon: [
-    ['Mindestens', (a) => esc(mengeText(a.mindestWaggon || 0, a.einheit)), true],
-    ['Noch da', zaehlFeld, true],
-    ['Nachfüllen', (a) => `<span data-nachfuellen="${a.id}">${zumWaggonText(a)}</span>`, true],
   ],
   uebersicht: [
     ['Lager', (a) => `${lagerHtml(a)}${statusLager(a) === 'ok' ? '' : ` ${badge('lager', statusLager(a))}`}`, true],
@@ -410,11 +443,32 @@ const istKritisch = (a) => ({
   uebersicht: statusLager(a) === 'krit' || nachfuellen(a) > 0,
 }[ort]);
 
+// Eingetippte, noch nicht gespeicherte Zahlen im Waggon über ein Neuzeichnen retten
+// (z. B. wenn ein anderes Gerät bucht, während hier jemand zählt)
+function eingabenMerken() {
+  const werte = {};
+  document.querySelectorAll('#artikelListe input.zaehl').forEach((f) => {
+    if (f.value !== '') werte[f.dataset.zaehl ? `z:${f.dataset.zaehl}` : `v:${f.dataset.verbraucht}`] = f.value;
+  });
+  return werte;
+}
+function eingabenLeeren() {
+  document.querySelectorAll('#artikelListe input.zaehl').forEach((f) => { f.value = ''; });
+}
+
 function renderBestand() {
+  const eingaben = eingabenMerken();
   $('#nurKritischText').textContent = { uebersicht: 'nur mit Handlungsbedarf', lager: 'nur mit Handlungsbedarf', waggon: 'nur nachfüllen' }[ort];
   $('#view-bestand').dataset.ort = ort;
 
-  const spalten = SPALTEN[ort];
+  const spalten = ort === 'waggon' ? WAGGON_SPALTEN[waggonModus] : SPALTEN[ort];
+  $('#waggonModus').hidden = ort !== 'waggon' || !istAdmin() || !state.artikel.length;
+  document.querySelectorAll('#waggonModus [data-modus]').forEach((b) => b.classList.toggle('active', b.dataset.modus === waggonModus));
+  $('#zaehlText').innerHTML = waggonModus === 'verbraucht'
+    ? 'Trag bei jedem Getränk ein, <strong>wie viel verbraucht wurde</strong>. Leere Felder bleiben unverändert.'
+    : 'Trag ein, <strong>wie viel noch im Waggon ist</strong>. Graue Zahl = letzter Stand, leere Felder bleiben unverändert.';
+  $('#btnZaehlung').textContent = waggonModus === 'verbraucht' ? 'Verbrauch speichern' : 'Zählung speichern';
+  $('#btnZaehlung').disabled = true;
   $('#bestandKopf').innerHTML = `<tr><th>Getränk</th>${spalten.map(([kopf, , num]) => `<th class="${num ? 'num' : ''}">${kopf}</th>`).join('')}<th class="actions"></th></tr>`;
 
   const q = $('#suche').value.trim().toLowerCase();
@@ -424,7 +478,7 @@ function renderBestand() {
     .filter((a) => !nurKrit || istKritisch(a));
 
   const zeile = (a) => `<tr class="${istKritisch(a) ? 'krit' : ''}">
-      <td data-k="name"><button class="name-link" data-edit="${a.id}" title="Bearbeiten">${esc(a.name)}</button>
+      <td data-k="name">${nameHtml(a)}
         ${a.notiz ? `<span class="small-note">${esc(a.notiz)}</span>` : ''}</td>
       ${spalten.map(([kopf, zelle, num]) => `<td class="${num ? 'num' : ''}" data-label="${kopf}">${zelle(a)}</td>`).join('')}
       <td class="actions">${KNOEPFE[ort](a)}</td>
@@ -436,6 +490,15 @@ function renderBestand() {
     if (!inGruppe.length) return '';
     return `<tr class="gruppe"><th colspan="${spalten.length + 2}">${esc(sorteName(sorte))}</th></tr>` + inGruppe.map(zeile).join('');
   }).join('');
+
+  // Gerettete Eingaben wieder einsetzen (inkl. Vorschau "nachfüllen")
+  Object.entries(eingaben).forEach(([key, wert]) => {
+    const [art, id] = [key.slice(0, 1), key.slice(2)];
+    const f = document.querySelector(art === 'z' ? `[data-zaehl="${id}"]` : `[data-verbraucht="${id}"]`);
+    if (!f) return;
+    f.value = wert;
+    f.dispatchEvent(new Event('input', { bubbles: true }));
+  });
 
   // Leisten unter der Tabelle: Zählung speichern (Waggon) bzw. alles gebracht (Lager)
   $('#zaehlLeiste').hidden = ort !== 'waggon' || !state.artikel.length;
@@ -454,6 +517,7 @@ function renderBestand() {
   leer.hidden = liste.length > 0;
   leer.innerHTML = state.artikel.length
     ? 'Keine passenden Getränke gefunden.'
+    : !istAdmin() ? 'Noch keine Getränke angelegt – das macht ein Admin.'
     : `Noch keine Getränke angelegt.<br>
        <button class="btn primary" id="btnListe">Getränkeliste anlegen (${GETRAENKELISTE.length} Getränke)</button>
        <span class="small-note">Cola, Calypso, Eistee, Jambo, Holundersirup, Radler, Bier, alkoholfreies Bier,
@@ -521,7 +585,7 @@ function renderKarten(liste, gruppe) {
     const einheiten = esc(PLURAL[a.einheit] ?? a.einheit);
     return `<article class="karte ${n || sl === 'krit' ? 'krit' : ''}">
       <header>
-        <button class="name-link" data-edit="${a.id}" title="Bearbeiten">${esc(a.name)}</button>
+        ${nameHtml(a)}
         <button class="btn small" data-buchen="${a.id}" data-typ="ein">Buchen</button>
       </header>
       <div class="karte-zeile">
@@ -570,6 +634,85 @@ function renderWarnungen() {
       (a) => esc(mengeText(nachfuellen(a), a.einheit)));
 }
 $('#warnungen').open = window.matchMedia('(min-width: 681px)').matches;
+
+// ---------- Benutzer: Rollen und Aktivität (nur Admin, nur mit Datenbank) ----------
+async function nutzerLaden() {
+  const card = $('#nutzerCard');
+  card.hidden = !store.cloud || !istAdmin();
+  if (card.hidden) return;
+  const hinweisEl = $('#nutzerHinweis');
+  hinweisEl.hidden = true;
+  if (rollenUpdateFehlt) {
+    hinweisEl.textContent = 'Für Benutzerrollen fehlt noch das Datenbank-Update: bitte die aktuelle supabase/schema.sql '
+      + 'einmal im Supabase SQL Editor ausführen. Bis dahin haben alle Benutzer volle Rechte.';
+    hinweisEl.hidden = false;
+    $('#nutzerListe').innerHTML = '';
+    return;
+  }
+  if (!navigator.onLine) {
+    $('#nutzerListe').innerHTML = '<tr><td colspan="5" class="still">Die Benutzerliste gibt es nur mit Internet.</td></tr>';
+    return;
+  }
+  const { data, error } = await sb.rpc('nutzer_liste');
+  if (error) {
+    hinweisEl.textContent = `Benutzer konnten nicht geladen werden: ${error.message}`;
+    hinweisEl.hidden = false;
+    return;
+  }
+  const wann = (iso, leer) => (iso ? esc(wannText(iso)) : `<span class="still">${leer}</span>`);
+  $('#nutzerListe').innerHTML = data.map((n) => `<tr>
+      <td data-k="name"><strong>${esc(n.email)}</strong>${n.id === angemeldeterNutzer?.id ? ' <span class="small-note">(du)</span>' : ''}</td>
+      <td data-label="Rolle">
+        <select data-rolle-fuer="${n.id}" aria-label="Rolle von ${esc(n.email)}">
+          <option value="admin" ${n.rolle === 'admin' ? 'selected' : ''}>Admin</option>
+          <option value="mitarbeiter" ${n.rolle !== 'admin' ? 'selected' : ''}>Mitarbeiter</option>
+        </select>
+      </td>
+      <td data-label="Letzte Anmeldung">${wann(n.letzte_anmeldung, 'noch nie')}</td>
+      <td data-label="Zuletzt aktiv">${wann(n.zuletzt_aktiv, '–')}</td>
+      <td data-label="Letzte Buchung">${wann(n.letzte_buchung, '–')}</td>
+    </tr>`).join('');
+}
+
+$('#nutzerListe').addEventListener('change', async (e) => {
+  const sel = e.target.closest('[data-rolle-fuer]');
+  if (!sel) return;
+  sel.disabled = true;
+  const { error } = await sb.rpc('rolle_setzen', { p_user: sel.dataset.rolleFuer, p_rolle: sel.value });
+  if (error) hinweis('Rolle nicht geändert', error.message);
+  else toast(`Rolle geändert: ${sel.value === 'admin' ? 'Admin' : 'Mitarbeiter'}`);
+  if (sel.dataset.rolleFuer === angemeldeterNutzer?.id && !error) {
+    rolle = sel.value;
+    angemeldeterNutzer.rolle = rolle;
+    rolleAnwenden();
+  }
+  nutzerLaden();
+});
+
+// Eigene Rolle aus der Datenbank; ohne Netz die zuletzt bekannte
+async function rolleLaden(gemerkt) {
+  try {
+    if (!navigator.onLine) throw new Error('offline');
+    const { data, error } = await sb.rpc('meine_rolle');
+    if (error) {
+      if (istNetzFehler(error)) throw error;
+      rollenUpdateFehlt = true; // Funktion fehlt noch – wie bisher volle Rechte
+      return 'admin';
+    }
+    rollenUpdateFehlt = false;
+    return data === 'admin' ? 'admin' : 'mitarbeiter';
+  } catch {
+    return gemerkt || 'mitarbeiter';
+  }
+}
+
+// "Ich bin da" für die Spalte "Zuletzt aktiv" (höchstens alle 5 Minuten)
+let zuletztGemeldet = 0;
+function binDa() {
+  if (!sb || !angemeldeterNutzer || !navigator.onLine || Date.now() - zuletztGemeldet < 5 * 60 * 1000) return;
+  zuletztGemeldet = Date.now();
+  sb.rpc('ich_bin_da').then(() => {}, () => {});
+}
 
 // ---------- Einstellungen: Mindeststückzahlen und Stück pro Kiste ----------
 function renderEinstellungen() {
@@ -921,18 +1064,68 @@ $('#leer').addEventListener('click', async (e) => {
 
 // Waggon: Live-Vorschau "nachfüllen" beim Eintippen der gezählten Menge
 $('#artikelListe').addEventListener('input', (e) => {
-  const feld = e.target.closest('[data-zaehl]');
+  const feld = e.target.closest('[data-zaehl], [data-verbraucht]');
   if (!feld) return;
-  const a = findArtikel(feld.dataset.zaehl);
-  const ziel = document.querySelector(`[data-nachfuellen="${a.id}"]`);
-  const da = feld.value === '' ? a.waggon : Math.max(0, Number(feld.value));
-  ziel.innerHTML = zumWaggonText({ ...a, waggon: da });
+  const a = findArtikel(feld.dataset.zaehl || feld.dataset.verbraucht);
+  let da = a.waggon;
+  if (feld.dataset.zaehl) {
+    da = feld.value === '' ? a.waggon : Math.max(0, Number(feld.value));
+  } else {
+    // Verbraucht: danach im Waggon = bisher − verbraucht
+    const v = Math.max(0, Number(feld.value) || 0);
+    feld.classList.toggle('fehler', v > a.waggon);
+    da = Math.max(0, round(a.waggon - v));
+    document.querySelector(`[data-imwaggon="${a.id}"]`).innerHTML = v
+      ? `${fmt(a.waggon)} → <strong>${esc(mengeText(da, a.einheit))}</strong>`
+      : esc(mengeText(a.waggon, a.einheit));
+  }
+  document.querySelector(`[data-nachfuellen="${a.id}"]`).innerHTML = zumWaggonText({ ...a, waggon: da });
   feld.closest('tr').classList.toggle('krit', nachfuellen({ ...a, waggon: da }) > 0);
-  $('#btnZaehlung').disabled = !document.querySelector('[data-zaehl]:not(:placeholder-shown)');
+  $('#btnZaehlung').disabled = !document.querySelector('[data-zaehl]:not(:placeholder-shown), [data-verbraucht]:not(:placeholder-shown)');
 });
+
+$('#waggonModus').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-modus]');
+  if (!b || !istAdmin()) return;
+  if (b.dataset.modus === waggonModus) return;
+  eingabenLeeren(); // andere Bedeutung der Felder
+  waggonModus = b.dataset.modus;
+  renderBestand();
+});
+
+// Waggon: Verbrauch speichern → als Verkauf buchen
+async function verbrauchSpeichern() {
+  const eintraege = [...document.querySelectorAll('[data-verbraucht]')]
+    .map((f) => [findArtikel(f.dataset.verbraucht), round(Math.max(0, Number(f.value) || 0))])
+    .filter(([a, v]) => a && v > 0);
+  if (!eintraege.length) return;
+  const zuViel = eintraege.filter(([a, v]) => v > a.waggon);
+  if (zuViel.length) {
+    hinweis('Mehr als im Waggon', `${zuViel.map(([a, v]) => `${a.name}: ${fmt(v)} eingetragen, laut App sind nur ${fmt(a.waggon)} im Waggon`).join('\n')}`
+      + '\n\nBitte die Zahl prüfen. Stimmt sie, muss ein Admin den Waggon neu zählen.');
+    return;
+  }
+  const btn = $('#btnZaehlung');
+  btn.disabled = true;
+  try {
+    for (const [a, v] of eintraege) {
+      await store.buchen(a.id, 'verkauf', v, letztePerson, 'Verbraucht im Waggon', { neuLaden: false });
+    }
+    eingabenLeeren();
+    if (store.cloud) await store.laden();
+    render();
+    const stueck = round(eintraege.reduce((sum, [, v]) => sum + v, 0));
+    const ohneNetz = warteschlange.length ? ' · 📶 ohne Internet gespeichert' : '';
+    toast(`✓ Verbrauch gespeichert: ${fmt(stueck)} Stück bei ${eintraege.length} ${eintraege.length === 1 ? 'Getränk' : 'Getränken'}${ohneNetz}`, 4000);
+  } catch (err) {
+    hinweis('Verbrauch nicht gespeichert', err.message);
+    await neuLaden();
+  }
+}
 
 // Waggon: Zählung speichern → Differenz wird als Verkauf (bzw. Korrektur) gebucht
 $('#btnZaehlung').addEventListener('click', async () => {
+  if (waggonModus === 'verbraucht') return verbrauchSpeichern();
   const felder = [...document.querySelectorAll('[data-zaehl]')].filter((f) => f.value !== '');
   if (!felder.length) return;
   const btn = $('#btnZaehlung');
@@ -946,6 +1139,7 @@ $('#btnZaehlung').addEventListener('click', async () => {
       if (diff > 0) { await store.buchen(a.id, 'verkauf', diff, letztePerson, 'Zählung im Waggon', { neuLaden: false }); verkauft += 1; }
       if (diff < 0) await store.buchen(a.id, 'korrektur', -diff, letztePerson, 'Zählung im Waggon', { neuLaden: false });
     }
+    eingabenLeeren();
     if (store.cloud) await store.laden();
     render();
     const offen = state.artikel.filter((a) => nachfuellen(a) > 0).length;
@@ -1140,13 +1334,20 @@ let liveKanal = null;
 
 async function angemeldet(session) {
   const user = session.user;
-  angemeldeterNutzer = { id: user.id, email: user.email, user_metadata: user.user_metadata || {} };
+  angemeldeterNutzer = { id: user.id, email: user.email, user_metadata: user.user_metadata || {}, rolle: user.rolle };
   $('#userBox').hidden = false;
   $('#userName').textContent = user.user_metadata?.name || user.email;
   letztePerson ||= user.user_metadata?.name || user.email.split('@')[0];
   zeigeAnsicht('laden');
+  // Ohne Netz: zuletzt bekannte Rolle dieses Benutzers (aus dem gespeicherten Stand)
+  const gemerkt = speicher.lesen(CACHE_KEY, null)?.nutzer;
+  rolle = await rolleLaden(user.rolle ?? (gemerkt?.id === user.id ? gemerkt.rolle : undefined));
+  angemeldeterNutzer.rolle = rolle;
+  document.body.dataset.rolle = rolle;
   await neuLaden();
-  zeigeAnsicht(aktiveAnsicht);
+  rolleAnwenden();
+  zeigeAnsicht(istAdmin() ? aktiveAnsicht : 'waggon');
+  binDa();
 
   liveKanal ??= sb.channel('lager-aenderungen')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'artikel' }, spaeterNeuLaden)
@@ -1160,6 +1361,9 @@ async function angemeldet(session) {
 function abgemeldet() {
   if (liveKanal) { sb.removeChannel(liveKanal); liveKanal = null; }
   angemeldeterNutzer = null;
+  letztePerson = ''; // nächster Benutzer bucht unter seinem eigenen Namen
+  rolle = 'admin';
+  delete document.body.dataset.rolle;
   try { localStorage.removeItem(CACHE_KEY); } catch { /* egal */ }
   state = { artikel: [], buchungen: [] };
   render();
@@ -1271,7 +1475,7 @@ async function start() {
 
   // Beim Zurückkehren zur App (z. B. Handy entsperrt) Daten auffrischen
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && aktiv) spaeterNeuLaden();
+    if (document.visibilityState === 'visible' && aktiv) { spaeterNeuLaden(); binDa(); }
   });
 }
 
