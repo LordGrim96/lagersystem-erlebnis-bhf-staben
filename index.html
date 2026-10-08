@@ -81,13 +81,19 @@
 
       <details id="warnungen" class="warn-box" hidden></details>
 
+      <!-- Waggon: verbraucht eintragen oder (Admin) Bestand zählen -->
+      <div id="waggonModus" class="modus-wahl" role="group" aria-label="Eingabe im Waggon" hidden>
+        <button type="button" data-modus="verbraucht" class="active">Verbraucht eintragen</button>
+        <button type="button" data-modus="zaehlen">Noch da zählen</button>
+      </div>
+
       <!-- Übersicht: Kennzahlen als Kacheln -->
       <div id="kacheln" class="kacheln" hidden></div>
 
       <div class="toolbar">
         <input id="suche" type="search" placeholder="Getränk oder Sorte suchen …" autocomplete="off">
         <label class="check"><input id="nurKritisch" type="checkbox"> <span id="nurKritischText">nur mit Handlungsbedarf</span></label>
-        <button id="btnNeu" class="btn primary" aria-label="Neues Getränk">+ <span class="nur-gross">Neues Getränk</span><span class="nur-handy">Neu</span></button>
+        <button id="btnNeu" class="btn primary nur-admin" aria-label="Neues Getränk">+ <span class="nur-gross">Neues Getränk</span><span class="nur-handy">Neu</span></button>
       </div>
 
       <!-- Übersicht: jedes Getränk als Karte mit Füllstand -->
@@ -102,8 +108,8 @@
       </div>
 
       <div id="zaehlLeiste" class="aktion-leiste" hidden>
-        <p>Trag ein, <strong>wie viel noch im Waggon ist</strong>. Graue Zahl = letzter Stand, leere Felder bleiben unverändert.</p>
-        <button id="btnZaehlung" class="btn primary" disabled>Zählung speichern</button>
+        <p id="zaehlText"></p>
+        <button id="btnZaehlung" class="btn primary" disabled>Speichern</button>
       </div>
       <div id="bringenLeiste" class="aktion-leiste" hidden>
         <p>„Zum Waggon bringen“ ergibt sich aus der letzten Zählung im Waggon und der Mindeststückzahl.</p>
@@ -136,6 +142,23 @@
       <div id="einstLeiste" class="aktion-leiste">
         <p>Neue Getränke legst du unter „Bestand“ mit „+ Neues Getränk“ an.</p>
         <button id="btnEinstSpeichern" class="btn primary" disabled>Einstellungen speichern</button>
+      </div>
+
+      <!-- Benutzer: Rollen und Aktivität (nur mit Datenbank) -->
+      <div class="card einst-nutzer" id="nutzerCard" hidden>
+        <h2>Benutzer</h2>
+        <p class="muted-text"><strong>Admins</strong> sehen alles und dürfen alles ändern.
+          <strong>Mitarbeiter</strong> sehen nur den Waggon und tragen ein, was verbraucht wurde.
+          Neue Benutzer legst du in Supabase an (Authentication → Users) – sie sind zuerst Mitarbeiter.</p>
+        <p id="nutzerHinweis" class="error" hidden></p>
+        <div class="table-wrap">
+          <table class="list nutzer">
+            <thead>
+              <tr><th>Benutzer</th><th>Rolle</th><th>Letzte Anmeldung</th><th>Zuletzt aktiv</th><th>Letzte Buchung</th></tr>
+            </thead>
+            <tbody id="nutzerListe"></tbody>
+          </table>
+        </div>
       </div>
 
       <!-- Daten: Sicherung, App, Löschen -->

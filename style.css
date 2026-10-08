@@ -255,6 +255,24 @@ table.list { width: 100%; border-collapse: collapse; }
   text-transform: none; letter-spacing: 0; color: var(--move); border: 1px dashed var(--move);
 }
 .einst-daten { margin-top: 18px; }
+.einst-nutzer { margin-top: 18px; }
+.einst-nutzer .table-wrap { margin-top: 10px; }
+.nutzer select { width: auto; padding: 6px 8px; }
+body[data-rolle="mitarbeiter"] .nur-admin { display: none !important; }
+.name-text { font-weight: 700; }
+
+/* Umschalter im Waggon: Verbraucht eintragen / Noch da zählen */
+.modus-wahl {
+  display: inline-grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; margin-bottom: 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+}
+.modus-wahl button {
+  font: inherit; font-weight: 700; font-size: 14px; color: var(--muted); background: transparent;
+  border: 0; border-radius: 6px; padding: 7px 14px; cursor: pointer;
+}
+.modus-wahl button.active { background: var(--text); color: var(--bg); }
+.modus-wahl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input.zaehl.fehler { border-color: var(--crit); color: var(--crit); background: var(--crit-bg); }
 
 /* ---------- Übersicht: Kacheln ---------- */
 .kacheln { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
@@ -396,6 +414,14 @@ menu .left { margin-right: auto; }
   .toolbar .btn.primary { flex: none; min-height: 44px; }
   .toolbar .check { flex-basis: 100%; order: 3; }
   .kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .modus-wahl { display: grid; width: 100%; }
+  body[data-rolle="mitarbeiter"] main { padding-bottom: 24px; }
+  table.nutzer thead { display: none; }
+  table.nutzer, .nutzer tbody { display: block; width: 100%; }
+  .nutzer tr { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .nutzer td { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 0; padding: 0; min-width: 0; }
+  .nutzer td[data-k=name] { display: block; overflow-wrap: anywhere; }
+  .nutzer td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 14px; }
   .kachel { padding: 10px 12px; }
   .kachel-zahl { font-size: 28px; }
   .karten { grid-template-columns: 1fr; }

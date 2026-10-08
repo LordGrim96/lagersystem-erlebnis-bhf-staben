@@ -25,6 +25,9 @@ Läuft im Browser auf PC, Tablet und Handy – ohne Installation.
   („nachbestellen“/„auffüllen“), bis 25 % darüber als „knapp“ markiert
 - **Gemeinsame Datenbank** (optional, Supabase): alle Geräte sehen dieselben Daten, Änderungen
   erscheinen live; Zugang nur mit Anmeldung
+- **Rollen**: *Admins* sehen und ändern alles; *Mitarbeiter* sehen nur den Waggon und tragen ein, was
+  verbraucht wurde. Unter Einstellungen → Benutzer sieht der Admin letzte Anmeldung, zuletzt aktiv und letzte
+  Buchung jedes Benutzers und legt fest, wer Admin ist. Die Rechte werden in der Datenbank geprüft.
 - **Als App installierbar**: eigenes Symbol auf dem Startbildschirm, Vollbild ohne Browser-Leiste
   (Android: Knopf „Installieren“, iPhone: Safari → Teilen → „Zum Home-Bildschirm“)
 - **Funktioniert auch ohne Internet**: Die App wird auf dem Gerät gespeichert und startet auch ohne Netz
