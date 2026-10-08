@@ -2,7 +2,18 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Installierbare App: Symbol, Name und Farben für Startbildschirm und Vollbild -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Getränke">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#ecdcb8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1d1611" media="(prefers-color-scheme: dark)">
   <title>Getränkelager · Erlebnisbahnhof Staben</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -60,6 +71,13 @@
         <strong>Lokaler Modus:</strong> Die Daten werden nur in diesem Browser gespeichert.
         Für eine gemeinsame Datenbank siehe README („Gemeinsame Datenbank einrichten“).
       </div>
+      <div id="installBox" class="install-box" hidden>
+        <img src="icons/icon-192.png" alt="" width="44" height="44">
+        <p id="installText"><strong>Als App aufs Handy holen</strong><br>Eigenes Symbol, Vollbild, funktioniert auch ohne Internet.</p>
+        <button id="btnInstall" class="btn primary">Installieren</button>
+        <button id="btnInstallZu" class="btn ghost-x" aria-label="Hinweis schließen">✕</button>
+      </div>
+
       <div id="ortWahl" class="ort-wahl" role="group" aria-label="Ansicht wählen">
         <button type="button" data-ort="uebersicht" aria-pressed="true">Übersicht<small>Lager + Waggon</small></button>
         <button type="button" data-ort="lager" aria-pressed="false">Lager<small>Liefern &amp; Bringen</small></button>
@@ -165,6 +183,11 @@
             <input id="importFile" type="file" accept="application/json,.json" hidden>
           </label>
         </div>
+      </div>
+      <div class="card" id="appCard">
+        <h2>Als App installieren</h2>
+        <p id="appText">Mit eigenem Symbol auf dem Startbildschirm, im Vollbild und auch ohne Internet nutzbar.</p>
+        <div class="row"><button id="btnInstall2" class="btn primary">App installieren</button></div>
       </div>
       <div class="card danger" id="resetCard">
         <h2>Alles löschen</h2>

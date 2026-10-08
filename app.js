@@ -1174,6 +1174,61 @@ async function start() {
   });
 }
 
+// ---------- Als App installieren ----------
+// Android/Chrome bietet die Installation per Knopf an; auf dem iPhone geht es nur über
+// "Teilen → Zum Home-Bildschirm" – dafür zeigen wir eine kurze Anleitung.
+let installAngebot = null;
+const istInstalliert = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const istIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const INSTALL_ZU_KEY = 'lager-bhf-staben-install-zu';
+const IOS_ANLEITUNG = 'Auf dem iPhone: unten in Safari auf „Teilen“ (□ mit Pfeil ↑) tippen, '
+  + 'dann „Zum Home-Bildschirm“ wählen und „Hinzufügen“ antippen.';
+
+function renderInstall() {
+  const moeglich = !istInstalliert() && (installAngebot || istIOS());
+  let zu = false;
+  try { zu = localStorage.getItem(INSTALL_ZU_KEY) === '1'; } catch { /* egal */ }
+  $('#installBox').hidden = !moeglich || zu;
+  $('#appCard').hidden = istInstalliert();
+  $('#btnInstall2').hidden = !moeglich;
+  $('#appText').textContent = istInstalliert()
+    ? 'Die App ist installiert.'
+    : moeglich
+      ? 'Mit eigenem Symbol auf dem Startbildschirm, im Vollbild und auch ohne Internet nutzbar.'
+      : 'Im Browser-Menü „App installieren“ oder „Zum Startbildschirm hinzufügen“ wählen.';
+  if (istIOS() && !installAngebot) {
+    $('#btnInstall').textContent = 'So geht’s';
+    $('#btnInstall2').textContent = 'So geht’s';
+  }
+}
+
+async function installieren() {
+  if (installAngebot) {
+    installAngebot.prompt();
+    const { outcome } = await installAngebot.userChoice;
+    installAngebot = null;
+    if (outcome === 'accepted') toast('App wird installiert – du findest sie gleich auf dem Startbildschirm', 4000);
+    renderInstall();
+  } else if (istIOS()) {
+    hinweis('App aufs iPhone holen', IOS_ANLEITUNG);
+  }
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault(); // eigener Knopf statt Browser-Leiste
+  installAngebot = e;
+  renderInstall();
+});
+window.addEventListener('appinstalled', () => { installAngebot = null; renderInstall(); });
+$('#btnInstall').addEventListener('click', installieren);
+$('#btnInstall2').addEventListener('click', installieren);
+$('#btnInstallZu').addEventListener('click', () => {
+  try { localStorage.setItem(INSTALL_ZU_KEY, '1'); } catch { /* egal */ }
+  renderInstall();
+});
+renderInstall();
+
 // App-Dateien fürs Arbeiten ohne Internet auf dem Gerät speichern (nur über https)
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Offline-Speicher nicht verfügbar', e));

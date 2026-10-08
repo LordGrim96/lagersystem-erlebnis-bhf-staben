@@ -25,6 +25,8 @@ Läuft im Browser auf PC, Tablet und Handy – ohne Installation.
   („nachbestellen“/„auffüllen“), bis 25 % darüber als „knapp“ markiert
 - **Gemeinsame Datenbank** (optional, Supabase): alle Geräte sehen dieselben Daten, Änderungen
   erscheinen live; Zugang nur mit Anmeldung
+- **Als App installierbar**: eigenes Symbol auf dem Startbildschirm, Vollbild ohne Browser-Leiste
+  (Android: Knopf „Installieren“, iPhone: Safari → Teilen → „Zum Home-Bildschirm“)
 - **Funktioniert auch ohne Internet**: Die App wird auf dem Gerät gespeichert und startet auch ohne Netz
   mit dem zuletzt geladenen Stand. Lieferungen, „Gebracht“, Zählungen und Verkäufe werden zwischengespeichert
   und automatisch hochgeladen, sobald wieder Internet da ist (Getränke anlegen und Einstellungen nur online)
@@ -95,5 +97,6 @@ bei jedem Push auf `main`.
 | `app.js` | Logik, lokale Speicherung bzw. Datenbank-Anbindung, Export/Import |
 | `config.js` | Zugangsdaten zur Datenbank (leer = lokaler Modus) |
 | `sw.js` | Speichert die App-Dateien fürs Arbeiten ohne Internet |
+| `manifest.webmanifest`, `icons/` | App-Name, Farben und App-Symbole für die Installation |
 | `supabase/schema.sql` | Tabellen, Zugriffsregeln und Buchungsfunktion für Supabase |
 | `.github/workflows/pages.yml` | Automatische Veröffentlichung über GitHub Pages |
