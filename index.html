@@ -88,11 +88,28 @@
       </div>
 
 
+      <div class="lager-kopf nur-admin">
+        <button id="btnLieferung" class="btn">+ Lieferung eintragen</button>
+      </div>
+
       <div class="toolbar">
         <input id="suche" type="search" placeholder="Getränk oder Sorte suchen …" autocomplete="off">
         <label class="check"><input id="nurKritisch" type="checkbox"> <span id="nurKritischText">nur mit Handlungsbedarf</span></label>
-        <button id="btnNeu" class="btn primary nur-admin" aria-label="Neues Getränk">+ <span class="nur-gross">Neues Getränk</span><span class="nur-handy">Neu</span></button>
       </div>
+
+      <!-- Übersicht: Grafik Lager + Waggon je Getränk -->
+      <figure id="grafik" class="grafik" hidden>
+        <figcaption class="grafik-kopf">
+          <span class="grafik-titel">Bestand auf einen Blick</span>
+          <span class="grafik-legende">
+            <span><i class="farbe lager"></i>Lager</span>
+            <span><i class="farbe waggon"></i>Waggon</span>
+          </span>
+        </figcaption>
+        <div id="grafikAchse" class="grafik-achse" aria-hidden="true"></div>
+        <div id="grafikZeilen" class="grafik-zeilen"></div>
+        <div id="grafikTipp" class="grafik-tipp" role="status" hidden></div>
+      </figure>
 
       <div class="table-wrap" id="bestandTabelle">
         <table class="list">
@@ -107,15 +124,18 @@
         <button id="btnZaehlung" class="btn primary" disabled>Speichern</button>
       </div>
       <div id="bringenLeiste" class="aktion-leiste" hidden>
-        <p>„Zum Waggon bringen“ ergibt sich aus der letzten Zählung im Waggon und der Mindeststückzahl.</p>
-        <button id="btnAllesGebracht" class="btn primary">✓ Alles zum Waggon gebracht</button>
+        <p>Vorgeschlagen ist, was im Waggon bis zur Mindeststückzahl fehlt. Mit − und + anpassen.</p>
+        <button id="btnBringen" class="btn primary" disabled>→ In den Waggon buchen</button>
       </div>
     </section>
 
     <!-- Einstellungen -->
     <section id="view-einstellungen" class="view">
-      <div class="card">
-        <h2>Mindeststückzahlen</h2>
+      <div class="card einst-kopf">
+        <div class="einst-titel">
+          <h2>Getränke &amp; Mindeststückzahlen</h2>
+          <button id="btnNeu" class="btn primary" type="button">+ Neues Getränk</button>
+        </div>
         <p class="muted-text">Im Waggon wird nach jeder Zählung bis zur <strong>Mindeststückzahl im Waggon</strong> nachgefüllt.
           Fällt das Lager auf seine Mindeststückzahl, heißt es „nachbestellen“.
           „Stück pro Kiste“ erlaubt bei Lieferungen die Eingabe in Kisten.</p>
@@ -135,7 +155,7 @@
         <p id="einstLeer" class="empty" hidden>Noch keine Getränke angelegt.</p>
       </div>
       <div id="einstLeiste" class="aktion-leiste">
-        <p>Neue Getränke legst du unter „Bestand“ mit „+ Neues Getränk“ an.</p>
+        <p>Getränk antippen in Lager oder Waggon öffnet die Bearbeitung (Name, Sorte, Löschen).</p>
         <button id="btnEinstSpeichern" class="btn primary" disabled>Einstellungen speichern</button>
       </div>
 
@@ -281,6 +301,10 @@
           <span class="chip">Waggon <strong id="chipWaggon">0</strong></span>
         </div>
       </header>
+
+      <label id="artikelWahlBox" class="artikel-wahl" hidden>Getränk
+        <select id="buchungArtikel"></select>
+      </label>
 
       <div class="seg" role="radiogroup" aria-label="Was möchtest du buchen?">
         <label><input type="radio" name="typ" value="ein" checked><span>Lieferung<small>ins Lager</small></span></label>

@@ -16,6 +16,9 @@
   --crit-bg: #f1d0b9;
   --move: #34526a;
   --move-bg: #d9dccd;
+  --farbe-lager: #4a6fb0;   /* Grafik: geprüft auf Farbschwäche (hell) */
+  --farbe-waggon: #a93c2a;
+  --farbe-balkentext: #ffffff;
   --on-crit: #f6ecd4;
   --radius: 6px;
   --font-display: "Rye", "Rockwell", Georgia, serif;
@@ -38,6 +41,12 @@
     --crit-bg: #45221b;
     --move: #a3c1d8;
     --move-bg: #1f2a32;
+  --farbe-lager: #6f90d6;
+  --farbe-waggon: #d9705a;
+  --farbe-balkentext: #1d1611;
+    --farbe-lager: #6f90d6;
+    --farbe-waggon: #d9705a;
+    --farbe-balkentext: #1d1611;
     --on-crit: #1d1611;
     color-scheme: dark;
   }
@@ -256,6 +265,8 @@ table.list { width: 100%; border-collapse: collapse; }
   text-transform: none; letter-spacing: 0; color: var(--move); border: 1px dashed var(--move);
 }
 .einst-daten { margin-top: 18px; }
+.einst-titel { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 6px; }
+.einst-titel h2 { margin: 0; }
 .einst-nutzer { margin-top: 18px; }
 .einst-nutzer .table-wrap { margin-top: 10px; }
 .nutzer select { width: auto; padding: 6px 8px; }
@@ -290,8 +301,59 @@ input.zaehl.fehler { border-color: var(--crit); color: var(--crit); background: 
 .schritt:active { transform: scale(.94); }
 .schritt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* Übersicht: reine Anzeige ohne Suche, Filter und Knöpfe */
-#view-bestand[data-ort=uebersicht] .toolbar { display: none; }
+/* ---------- Übersicht: Grafik ---------- */
+.grafik {
+  position: relative; margin: 0 0 16px; padding: 14px 16px 16px;
+  background: var(--surface); border: 2px solid var(--text); border-radius: 8px;
+  box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 4px var(--border);
+}
+.grafik-kopf { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 10px; }
+.grafik-titel { font-family: var(--font-display); font-size: 20px; color: var(--accent); }
+.grafik-legende { display: flex; gap: 14px; font-size: 13px; color: var(--muted); font-weight: 700; }
+.grafik-legende span, .grafik-tipp span { display: inline-flex; align-items: center; gap: 6px; }
+.farbe { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+.farbe.lager { background: var(--farbe-lager); }
+.farbe.waggon { background: var(--farbe-waggon); }
+/* Spalten: Name | Balken | Summe – Achse und Zeilen teilen dasselbe Raster */
+.grafik-achse, .grafik-zeile { display: grid; grid-template-columns: minmax(90px, 160px) minmax(0, 1fr) 48px; gap: 12px; align-items: center; }
+.achse-skala { position: relative; height: 16px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.achse-skala span { position: absolute; transform: translateX(-50%); }
+.achse-skala span:first-child { transform: none; }
+.achse-skala span:last-child { transform: translateX(-100%); }
+.grafik-gruppe {
+  margin: 10px 0 2px; font-family: var(--font-display); font-size: 14px; color: var(--accent);
+}
+.grafik-zeile { padding: 4px 0; border-radius: 6px; cursor: default; outline: none; }
+.grafik-zeile:hover, .grafik-zeile:focus-visible { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.grafik-zeile:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.grafik-name { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grafik-summe { font-weight: 800; font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+.grafik-balken { position: relative; display: flex; height: 22px; align-items: stretch; }
+.grafik-balken > i { position: absolute; top: -4px; bottom: -4px; width: 1px; background: color-mix(in srgb, var(--text) 12%, transparent); }
+.seg-lager, .seg-waggon {
+  position: relative; display: flex; align-items: center; justify-content: flex-end; overflow: hidden;
+  font-size: 11px; font-variant-numeric: tabular-nums; color: var(--farbe-balkentext);
+}
+.seg-lager { background: var(--farbe-lager); }
+.seg-waggon { background: var(--farbe-waggon); }
+.seg-lager b, .seg-waggon b { padding: 0 6px; font-weight: 800; }
+.seg-luecke { flex: none; width: 2px; }            /* 2px Abstand in Flächenfarbe zwischen den Segmenten */
+.seg-lager.ende, .seg-waggon.ende { border-radius: 0 4px 4px 0; }  /* runde Enden nur am Datenende */
+.seg-waggon[style^="width:0%"] { display: none; }
+.grafik-tipp {
+  position: absolute; left: 16px; right: 16px; z-index: 3; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center;
+  padding: 8px 12px; font-size: 13px; background: var(--text); color: var(--bg); border-radius: 8px;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--text) 30%, transparent); pointer-events: none;
+}
+.grafik-tipp .still { color: color-mix(in srgb, var(--bg) 75%, transparent); }
+
+/* Übersicht: reine Anzeige ohne Suche, Filter und Knöpfe; Lager ohne Suche */
+#view-bestand[data-ort=uebersicht] .toolbar,
+#view-bestand[data-ort=lager] .toolbar { display: none; }
+.lager-kopf { display: none; margin-bottom: 12px; }
+#view-bestand[data-ort=lager] .lager-kopf { display: flex; justify-content: flex-end; }
+body[data-rolle="mitarbeiter"] #view-bestand .lager-kopf { display: none; }
+.artikel-wahl select { font-size: 16px; padding: 10px; }
 #view-bestand[data-ort=uebersicht] .list td.num { font-size: 16px; }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
@@ -377,6 +439,10 @@ menu .left { margin-right: auto; }
   .toolbar .btn.primary { flex: none; min-height: 44px; }
   .toolbar .check { flex-basis: 100%; order: 3; }
   .modus-wahl { display: grid; width: 100%; }
+  .grafik { padding: 12px; }
+  .grafik-achse, .grafik-zeile { grid-template-columns: 84px minmax(0, 1fr) 34px; gap: 8px; }
+  .grafik-name, .grafik-summe { font-size: 13px; }
+  .grafik-tipp { left: 12px; right: 12px; }
   body[data-rolle="mitarbeiter"] main { padding-bottom: 24px; }
   table.nutzer thead { display: none; }
   table.nutzer, .nutzer tbody { display: block; width: 100%; }
@@ -412,8 +478,9 @@ menu .left { margin-right: auto; }
   #view-bestand .list tr.gruppe th { display: block; padding: 0; border: 0; background: none; }
   #view-bestand .list input.zaehl { width: 100%; height: 52px; font-size: 22px; text-align: center; }
   /* Waggon am Handy: Bestand und Nachfüllen oben, − Zahl + darunter über die ganze Breite */
-  #view-bestand[data-ort=waggon] .list tr { --spalten: 2; }
-  #view-bestand[data-ort=waggon] .list td:has(.stepper) { grid-column: 1 / -1; order: 3; }
+  #view-bestand[data-ort=waggon] .list tr, #view-bestand[data-ort=lager] .list tr { --spalten: 2; }
+  #view-bestand .list td:has(.stepper) { grid-column: 1 / -1; order: 3; }
+  #view-bestand[data-ort=lager] .lager-kopf .btn { width: 100%; min-height: 44px; }
   #view-bestand[data-ort=waggon] .list td.actions { order: 4; }
   #view-bestand .list .stepper { display: grid; grid-template-columns: 56px 1fr 56px; gap: 8px; width: 100%; }
   #view-bestand .list .schritt { width: auto; min-height: 52px; font-size: 26px; }
