@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Getränkelager · Erlebnisbahnhof Staben</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@400;500;700;800&family=Rye&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-text">
+        <p class="sub">Erlebnisbahnhof Staben</p>
+        <h1>Getränkelager</h1>
+      </div>
+      <div class="user" id="userBox" hidden>
+        <span id="sync" class="sync" title="Verbindungsstatus"></span>
+        <span id="userName"></span>
+        <button id="btnLogout" class="btn small ghost">Abmelden</button>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" id="tabs">
+      <button class="tab active" data-view="bestand" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2h4v4l2 3v13H8V9l2-3z"/><path d="M8 13h8"/></svg><span>Bestand</span></button>
+      <button class="tab" data-view="verlauf" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Verlauf</span></button>
+      <button class="tab" data-view="einstellungen" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span>Einstellungen</span></button>
+      <button class="tab" data-view="daten" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M7 10l5 5 5-5M4 17v3h16v-3"/></svg><span>Daten</span></button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Anmeldung (nur mit Datenbank) -->
+    <section id="view-login" class="view">
+      <form id="formLogin" class="card login">
+        <h2>Anmelden</h2>
+        <p class="muted-text">Bitte mit deinem Zugang zum Getränkelager anmelden.</p>
+        <label>E-Mail
+          <input name="email" type="email" autocomplete="username" required>
+        </label>
+        <label>Passwort
+          <input name="passwort" type="password" autocomplete="current-password" required>
+        </label>
+        <p id="loginFehler" class="error" hidden></p>
+        <button class="btn primary">Anmelden</button>
+      </form>
+    </section>
+
+    <!-- Laden -->
+    <section id="view-laden" class="view">
+      <p class="empty">Lade Daten …</p>
+    </section>
+
+    <!-- Bestand -->
+    <section id="view-bestand" class="view">
+      <div id="lokalHinweis" class="info-box" hidden>
+        <strong>Lokaler Modus:</strong> Die Daten werden nur in diesem Browser gespeichert.
+        Für eine gemeinsame Datenbank siehe README („Gemeinsame Datenbank einrichten“).
+      </div>
+      <div id="ortWahl" class="ort-wahl" role="group" aria-label="Ansicht wählen">
+        <button type="button" data-ort="uebersicht" aria-pressed="true">Übersicht<small>Lager + Waggon</small></button>
+        <button type="button" data-ort="lager" aria-pressed="false">Lager<small>Liefern &amp; Bringen</small></button>
+        <button type="button" data-ort="waggon" aria-pressed="false">Waggon<small>Zählen</small></button>
+      </div>
+
+      <details id="warnungen" class="warn-box" hidden></details>
+
+      <div class="toolbar">
+        <input id="suche" type="search" placeholder="Getränk oder Sorte suchen …" autocomplete="off">
+        <label class="check"><input id="nurKritisch" type="checkbox"> <span id="nurKritischText">nur mit Handlungsbedarf</span></label>
+        <button id="btnNeu" class="btn primary" aria-label="Neues Getränk">+ <span class="nur-gross">Neues Getränk</span><span class="nur-handy">Neu</span></button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="list">
+          <thead id="bestandKopf"></thead>
+          <tbody id="artikelListe"></tbody>
+        </table>
+        <p id="leer" class="empty" hidden></p>
+      </div>
+
+      <div id="zaehlLeiste" class="aktion-leiste" hidden>
+        <p>Trag ein, <strong>wie viel noch im Waggon ist</strong>. Graue Zahl = letzter Stand, leere Felder bleiben unverändert.</p>
+        <button id="btnZaehlung" class="btn primary" disabled>Zählung speichern</button>
+      </div>
+      <div id="bringenLeiste" class="aktion-leiste" hidden>
+        <p>„Zum Waggon bringen“ ergibt sich aus der letzten Zählung im Waggon und der Mindeststückzahl.</p>
+        <button id="btnAllesGebracht" class="btn primary">✓ Alles zum Waggon gebracht</button>
+      </div>
+    </section>
+
+    <!-- Einstellungen -->
+    <section id="view-einstellungen" class="view">
+      <div class="card">
+        <h2>Mindeststückzahlen</h2>
+        <p class="muted-text">Im Waggon wird nach jeder Zählung bis zur <strong>Mindeststückzahl im Waggon</strong> nachgefüllt.
+          Fällt das Lager auf seine Mindeststückzahl, heißt es „nachbestellen“.
+          „Stück pro Kiste“ erlaubt bei Lieferungen die Eingabe in Kisten.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="list einst">
+          <thead>
+            <tr>
+              <th>Getränk</th>
+              <th class="num">Mindestens im Waggon</th>
+              <th class="num">Mindestens im Lager</th>
+              <th class="num">Stück pro Kiste</th>
+            </tr>
+          </thead>
+          <tbody id="einstListe"></tbody>
+        </table>
+        <p id="einstLeer" class="empty" hidden>Noch keine Getränke angelegt.</p>
+      </div>
+      <div id="einstLeiste" class="aktion-leiste">
+        <p>Neue Getränke legst du unter „Bestand“ mit „+ Neues Getränk“ an.</p>
+        <button id="btnEinstSpeichern" class="btn primary" disabled>Einstellungen speichern</button>
+      </div>
+    </section>
+
+    <!-- Verlauf -->
+    <section id="view-verlauf" class="view">
+      <div class="toolbar">
+        <select id="verlaufFilter">
+          <option value="">Alle Getränke</option>
+        </select>
+        <select id="verlaufTyp">
+          <option value="">Alle Buchungen</option>
+          <option value="ein">nur Lieferungen</option>
+          <option value="aus">nur Lager → Waggon</option>
+          <option value="verkauf">nur Verkäufe</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table class="list">
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Getränk</th>
+              <th>Art</th>
+              <th class="num">Menge</th>
+              <th class="num">Danach</th>
+              <th>Person</th>
+              <th>Notiz</th>
+            </tr>
+          </thead>
+          <tbody id="verlaufListe"></tbody>
+        </table>
+        <p id="verlaufLeer" class="empty" hidden>Noch keine Buchungen.</p>
+      </div>
+    </section>
+
+    <!-- Daten -->
+    <section id="view-daten" class="view">
+      <div class="card">
+        <h2>Datensicherung</h2>
+        <p id="datenText"></p>
+        <div class="row">
+          <button id="btnExport" class="btn">Sicherung herunterladen (JSON)</button>
+          <button id="btnCsv" class="btn">Bestandsliste als CSV</button>
+          <label class="btn">
+            <span id="importLabel">Sicherung einspielen</span>
+            <input id="importFile" type="file" accept="application/json,.json" hidden>
+          </label>
+        </div>
+      </div>
+      <div class="card danger" id="resetCard">
+        <h2>Alles löschen</h2>
+        <p>Entfernt alle Getränke und Buchungen aus diesem Browser.</p>
+        <button id="btnReset" class="btn danger">Alle Daten löschen</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Dialog: Getränk anlegen/bearbeiten -->
+  <dialog id="dlgArtikel">
+    <form id="formArtikel">
+      <h2 id="dlgArtikelTitel">Neues Getränk</h2>
+      <div class="grid2">
+        <label>Bezeichnung *
+          <input name="name" required maxlength="120" placeholder="z. B. Cola 0,5 l">
+        </label>
+        <label>Sorte
+          <select name="sorte">
+            <option>Alkoholfrei</option>
+            <option>Bier &amp; Radler</option>
+            <option>Wein &amp; Prosecco</option>
+            <option>Spirituosen</option>
+            <option value="">Sonstiges</option>
+          </select>
+        </label>
+      </div>
+      <div class="grid2">
+        <label>Gezählt wird in
+          <input name="einheit" maxlength="20" list="einheitenListe" placeholder="Flasche">
+        </label>
+        <label>Stück pro Kiste (optional)
+          <input name="proKiste" type="number" min="0" step="1" placeholder="z. B. 24">
+        </label>
+      </div>
+      <div class="grid2">
+        <label>Mindestens im Lager (Stück)
+          <input name="mindest" type="number" min="0" step="any" value="0">
+        </label>
+        <label>Mindestens im Waggon (Stück, wird bis dahin nachgefüllt)
+          <input name="mindestWaggon" type="number" min="0" step="any" value="0">
+        </label>
+      </div>
+      <div class="grid2 only-new">
+        <label>Jetzt im Lager (Stück)
+          <input name="anfang" type="number" min="0" step="any" value="0">
+        </label>
+        <label>Jetzt im Waggon (Stück)
+          <input name="anfangWaggon" type="number" min="0" step="any" value="0">
+        </label>
+      </div>
+      <label>Notiz
+        <input name="notiz" maxlength="200" placeholder="z. B. Lieferant, Flaschengröße">
+      </label>
+      <p id="artikelFehler" class="error" hidden></p>
+      <menu>
+        <button type="button" id="btnArtikelLoeschen" class="btn danger left" hidden>Löschen</button>
+        <button type="button" class="btn" data-close>Abbrechen</button>
+        <button class="btn primary">Speichern</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <!-- Dialog: Buchen -->
+  <dialog id="dlgBuchung">
+    <form id="formBuchung">
+      <h2 id="dlgBuchungTitel">Buchen</h2>
+      <p id="dlgBuchungInfo" class="muted"></p>
+      <div class="seg">
+        <label><input type="radio" name="typ" value="ein" checked><span>+ Lieferung<small>ins Lager</small></span></label>
+        <label><input type="radio" name="typ" value="aus"><span>Lager → Waggon<small>auffüllen</small></span></label>
+        <label><input type="radio" name="typ" value="verkauf"><span>− Verkauft<small>aus dem Waggon</small></span></label>
+      </div>
+      <div class="eingabe-wahl" id="eingabeWahl" hidden>
+        <span>Eingabe in</span>
+        <label><input type="radio" name="eingabe" value="stueck" checked> <span id="eingabeStueck">Flaschen</span></label>
+        <label><input type="radio" name="eingabe" value="kiste"> <span id="eingabeKiste">Kisten</span></label>
+      </div>
+      <div class="grid2">
+        <label>Menge *
+          <input name="menge" type="number" min="0.001" step="any" required>
+          <span id="umrechnung" class="umrechnung" hidden></span>
+        </label>
+        <label>Person
+          <input name="person" maxlength="60" list="personenListe">
+        </label>
+      </div>
+      <label id="zaehlenBox" hidden>Oder: so viel ist noch im Waggon (gezählt)
+        <input name="gezaehlt" type="number" min="0" step="any" placeholder="die verkaufte Menge wird ausgerechnet">
+      </label>
+      <label>Notiz
+        <input name="notiz" maxlength="200" placeholder="z. B. Getränkehandel, Sommerfest">
+      </label>
+      <p id="buchungFehler" class="error" hidden></p>
+      <menu>
+        <button type="button" class="btn" data-close>Abbrechen</button>
+        <button class="btn primary">Buchen</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <!-- Dialog: Rückfrage / Hinweis (statt Browser-Popups) -->
+  <dialog id="dlgFrage">
+    <form id="formFrage">
+      <h2 id="frageTitel"></h2>
+      <p id="frageText" class="frage-text"></p>
+      <label id="frageEingabeLabel" hidden><span id="frageEingabeText"></span>
+        <input id="frageEingabe" autocomplete="off">
+      </label>
+      <menu>
+        <button type="button" class="btn" id="frageAbbrechen">Abbrechen</button>
+        <button class="btn primary" id="frageOk">OK</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <datalist id="einheitenListe">
+    <option value="Flasche"><option value="Dose"><option value="Glas"><option value="Stück">
+  </datalist>
+  <datalist id="personenListe"></datalist>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
