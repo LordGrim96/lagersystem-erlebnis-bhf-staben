@@ -1,7 +1,7 @@
 // Service Worker: speichert die App-Dateien auf dem Gerät, damit das Getränkelager
 // auch ohne Internet startet. Die Lagerdaten selbst (Supabase) werden nie hier gespeichert –
 // darum kümmert sich app.js (letzter Stand + Warteschlange).
-const CACHE = 'getraenkelager-v5';
+const CACHE = 'getraenkelager-v6';
 const APP_DATEIEN = [
   './', './index.html', './app.js', './style.css', './config.js', './manifest.webmanifest',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
