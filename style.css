@@ -113,6 +113,7 @@ h1 { margin: 0; font-size: clamp(26px, 6vw, 34px); line-height: 1.05; color: var
 .tab:hover { color: var(--text); }
 .tab.active { background: var(--accent); color: var(--accent-text); }
 .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tab, .btn, .seg span, .modus-wahl button { -webkit-tap-highlight-color: transparent; }
 
 main { max-width: 1100px; margin: 0 auto; padding: 16px; }
 .view { display: none; }
@@ -289,88 +290,9 @@ input.zaehl.fehler { border-color: var(--crit); color: var(--crit); background: 
 .schritt:active { transform: scale(.94); }
 .schritt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* ---------- Übersicht: Kacheln ---------- */
-.kacheln { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
-.kachel {
-  display: flex; flex-direction: column; gap: 2px; text-align: left; cursor: pointer; min-width: 0;
-  font: inherit; color: var(--text); background: var(--surface);
-  border: 2px solid var(--text); border-radius: 8px; padding: 12px 14px;
-  box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 4px var(--border);
-}
-.kachel:hover { filter: brightness(.97); }
-.kachel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.kachel-titel { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
-.kachel-zahl { font-family: var(--font-display); font-size: 34px; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.kachel-unter { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kachel.move .kachel-zahl { color: var(--move); }
-.kachel.krit .kachel-zahl { color: var(--crit); }
-.kachel.ok .kachel-zahl { color: var(--ok); }
-
-/* ---------- Übersicht: Karten je Getränk ---------- */
-.karten-gruppe + .karten-gruppe { margin-top: 18px; }
-.karten-gruppe h3 {
-  margin: 0 0 8px; font-family: var(--font-display); font-weight: 400; font-size: 19px; color: var(--accent);
-  border-bottom: 1px solid var(--text); padding-bottom: 4px;
-}
-.karten-gruppe h3::before { content: "✦ "; font-size: 13px; vertical-align: 2px; }
-.karten { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
-.karte {
-  display: flex; flex-direction: column; gap: 4px; min-width: 0;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px;
-}
-.karte.krit { border-color: var(--crit); box-shadow: 0 0 0 1px var(--crit); }
-.karte header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
-.karte header .name-link { font-size: 17px; min-width: 0; overflow-wrap: anywhere; }
-.karte-zeile { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 6px; }
-.karte-lbl { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
-.karte-wert { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
-.karte-wert small { font-weight: 500; color: var(--muted); }
-.karte-info { margin: 0; font-size: 13px; color: var(--muted); min-height: 1.4em; }
-.karte-info .badge { transform: none; }
-
-/* Füllstandsbalken */
-.meter {
-  position: relative; height: 10px; border-radius: 5px;
-  background: color-mix(in srgb, var(--text) 12%, transparent);
-}
-.meter > span { display: block; height: 100%; border-radius: 5px; background: var(--muted); min-width: 4px; }
-.meter.move > span { background: var(--move); }
-.meter.ok > span { background: var(--ok); }
-.meter.warn > span { background: var(--warn); }
-.meter.krit > span { background: var(--crit); }
-.meter > i { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text); border-radius: 1px; }
-.buchung-kopf { display: flex; flex-direction: column; gap: 8px; }
-.buchung-kopf h2 { font-size: 26px; }
-.bestand-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip {
-  display: inline-flex; gap: 6px; align-items: baseline; padding: 4px 10px; border-radius: 999px;
-  border: 1px solid var(--border); background: var(--bg); font-size: 13px; color: var(--muted);
-}
-.chip strong { color: var(--text); font-size: 15px; font-variant-numeric: tabular-nums; }
-.menge-block { display: flex; flex-direction: column; gap: 8px; }
-.menge-kopf { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; }
-dialog .menge-kopf > label { font-size: 15px; color: var(--text); font-weight: 700; }
-.menge-block .eingabe-wahl { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; }
-.menge-block .eingabe-wahl label { position: relative; }
-.menge-block .eingabe-wahl input { position: absolute; opacity: 0; width: 0; }
-.menge-block .eingabe-wahl span { display: block; padding: 5px 10px; border-radius: 6px; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; }
-.menge-block .eingabe-wahl input:checked + span { background: var(--text); color: var(--bg); }
-.menge-block .eingabe-wahl input:focus-visible + span { outline: 2px solid var(--accent); }
-.stepper.gross { display: grid; grid-template-columns: 60px 1fr 60px; gap: 8px; }
-.stepper.gross .schritt { width: auto; min-height: 56px; font-size: 28px; }
-.stepper.gross input.zaehl { width: 100%; height: 56px; font-size: 26px; }
-.vorschau { margin: 0; min-height: 1.5em; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.vorschau strong { color: var(--text); }
-.vorschau.fehler { color: var(--crit); font-weight: 700; }
-details.mehr summary { cursor: pointer; color: var(--muted); font-weight: 700; font-size: 14px; }
-details.mehr[open] summary { margin-bottom: 10px; }
-#btnBuchen:disabled { opacity: .45; cursor: not-allowed; }
-.frage-text { margin: 0; white-space: pre-line; }
-.muted-text { color: var(--muted); margin: 0; }
-.btn:disabled { opacity: .6; cursor: progress; }
-.empty { text-align: center; color: var(--muted); padding: 28px 12px; margin: 0; }
-.muted { color: var(--muted); margin-top: -6px; }
-.error { color: var(--crit); font-weight: 600; margin: 0; }
+/* Übersicht: reine Anzeige ohne Suche, Filter und Knöpfe */
+#view-bestand[data-ort=uebersicht] .toolbar { display: none; }
+#view-bestand[data-ort=uebersicht] .list td.num { font-size: 16px; }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
 .card h2 { margin: 0 0 6px; font-size: 20px; }
@@ -454,7 +376,6 @@ menu .left { margin-right: auto; }
   .toolbar input[type=search] { flex: 1 1 0; min-width: 0; }
   .toolbar .btn.primary { flex: none; min-height: 44px; }
   .toolbar .check { flex-basis: 100%; order: 3; }
-  .kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .modus-wahl { display: grid; width: 100%; }
   body[data-rolle="mitarbeiter"] main { padding-bottom: 24px; }
   table.nutzer thead { display: none; }
@@ -463,9 +384,6 @@ menu .left { margin-right: auto; }
   .nutzer td { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 0; padding: 0; min-width: 0; }
   .nutzer td[data-k=name] { display: block; overflow-wrap: anywhere; }
   .nutzer td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 14px; }
-  .kachel { padding: 10px 12px; }
-  .kachel-zahl { font-size: 28px; }
-  .karten { grid-template-columns: 1fr; }
   .nur-gross { display: none; }
   .nur-handy { display: inline; }
 
@@ -476,7 +394,7 @@ menu .left { margin-right: auto; }
     display: grid; grid-template-columns: repeat(var(--spalten, 2), minmax(0, 1fr)); gap: 8px 12px;
     padding: 12px 14px; border-bottom: 1px solid var(--border);
   }
-  #view-bestand[data-ort=waggon] .list tr, #view-bestand[data-ort=uebersicht] .list tr { --spalten: 3; }
+  #view-bestand[data-ort=waggon] .list tr { --spalten: 3; }
   #view-bestand .list td { display: block; border: 0; padding: 0; text-align: left; min-width: 0; }
   #view-bestand .list td[data-k=name] { grid-column: 1 / -1; font-size: 17px; }
   #view-bestand .list td[data-label] { font-weight: 700; font-size: 16px; line-height: 1.3; }
