@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- App-Symbol im Stil des Bahnhofsplakats: Flasche mit Etikett und Stern auf altem Papier -->
+  <defs>
+    <radialGradient id="papier" cx="35%" cy="25%" r="85%">
+      <stop offset="0" stop-color="#f6ecd4"/>
+      <stop offset="1" stop-color="#e2cc9f"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#papier)"/>
+  <g transform="translate(256 256) scale(0.74) translate(-256 -256)">
+  <rect x="30" y="30" width="452" height="452" rx="34" fill="none" stroke="#2b2018" stroke-width="10"/>
+  <rect x="50" y="50" width="412" height="412" rx="22" fill="none" stroke="#2b2018" stroke-width="3"/>
+  <rect x="219" y="76" width="74" height="24" rx="6" fill="#2b2018"/>
+  <path fill="#6e211d" d="M226 98h60v64q0 14 10 26l28 34q12 15 12 34v168q0 22-22 22H198q-22 0-22-22V256q0-19 12-34l28-34q10-12 10-26z"/>
+  <rect x="176" y="282" width="160" height="92" fill="#f6ecd4"/>
+  <path d="M176 288h160M176 368h160" stroke="#2b2018" stroke-width="4"/>
+  <path fill="#6e211d" d="M256 300l9.4 19 21 3-15.2 14.8 3.6 20.9L256 347.8l-18.8 9.9 3.6-20.9L225.6 322l21-3z"/>
+  </g>
+</svg>

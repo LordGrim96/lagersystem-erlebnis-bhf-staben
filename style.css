@@ -230,6 +230,23 @@ table.list { width: 100%; border-collapse: collapse; }
 .kisten { color: var(--muted); font-weight: 500; }
 .warn-box summary { cursor: pointer; font-weight: 800; color: var(--crit); list-style-position: inside; }
 .warn-box[open] summary { margin-bottom: 8px; }
+.install-box {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 10px 12px;
+  background: var(--surface); border: 2px solid var(--accent); border-radius: var(--radius);
+}
+.install-box img { flex: none; border-radius: 10px; border: 1px solid var(--border); }
+.install-box p { margin: 0; flex: 1 1 auto; min-width: 0; font-size: 14px; line-height: 1.35; color: var(--muted); }
+.install-box p strong { color: var(--text); }
+.install-box .btn { flex: none; }
+.btn.ghost-x { background: transparent; border-color: transparent; color: var(--muted); padding: 6px 8px; }
+.offline-box {
+  padding: 10px 16px; font-size: 14px; line-height: 1.4;
+  background: var(--move-bg); color: var(--text); border-bottom: 2px solid var(--move);
+}
+.wartend {
+  display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 4px; font-size: 11px;
+  text-transform: none; letter-spacing: 0; color: var(--move); border: 1px dashed var(--move);
+}
 .frage-text { margin: 0; white-space: pre-line; }
 .muted-text { color: var(--muted); margin: 0; }
 .btn:disabled { opacity: .6; cursor: progress; }
@@ -283,7 +300,7 @@ menu .left { margin-right: auto; }
   main { padding: 12px 12px calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px); }
 
   /* Kopf scrollt mit, Navigation als Leiste unten im Daumenbereich */
-  .topbar { position: static; padding: 12px 16px 10px; }
+  .topbar { position: static; padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 10px; }
   h1 { font-size: 28px; }
   .tabs {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; margin: 0;
