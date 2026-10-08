@@ -336,21 +336,29 @@ async function buchen(artikelId, typ, menge, person, notiz) {
 }
 
 // ---------- Ansichten ----------
-let aktiveAnsicht = 'bestand';
-
-// Bestand-Umschalter: Übersicht, Lager oder Waggon (wird im Browser gemerkt)
-const ORTE = ['uebersicht', 'lager', 'waggon'];
-let ort = 'uebersicht';
-try {
-  const gemerkt = localStorage.getItem('lager-bhf-staben-ansicht');
-  if (ORTE.includes(gemerkt)) ort = gemerkt;
-} catch { /* ohne Browser-Speicher: Übersicht */ }
+// Bereiche der Navigation: Waggon, Lager und Übersicht teilen sich die Bestandsansicht.
+// Die App startet immer mit dem Waggon.
+const ORTE = ['waggon', 'lager', 'uebersicht'];
+const BEREICHE = [...ORTE, 'verlauf', 'einstellungen'];
+let ort = 'waggon';
+let aktiveAnsicht = 'waggon';
 
 function zeigeAnsicht(name) {
-  if (['bestand', 'verlauf', 'einstellungen', 'daten'].includes(name)) aktiveAnsicht = name;
-  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
-  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.view === name));
+  if (name === 'bestand') name = ort;
+  if (ORTE.includes(name) && name !== ort) {
+    ort = name;
+    renderBestand();
+    renderWarnungen();
+  }
+  if (BEREICHE.includes(name)) aktiveAnsicht = name;
+  const view = ORTE.includes(name) ? 'bestand' : name;
+  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${view}`));
+  document.querySelectorAll('.tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.view === name);
+    t.setAttribute('aria-selected', t.dataset.view === name);
+  });
   $('#tabs').hidden = name === 'login' || name === 'laden';
+  window.scrollTo(0, 0);
 }
 
 function render() {
@@ -403,10 +411,6 @@ const istKritisch = (a) => ({
 }[ort]);
 
 function renderBestand() {
-  document.querySelectorAll('#ortWahl [data-ort]').forEach((b) => {
-    b.classList.toggle('active', b.dataset.ort === ort);
-    b.setAttribute('aria-pressed', b.dataset.ort === ort);
-  });
   $('#nurKritischText').textContent = { uebersicht: 'nur mit Handlungsbedarf', lager: 'nur mit Handlungsbedarf', waggon: 'nur nachfüllen' }[ort];
   $('#view-bestand').dataset.ort = ort;
 
@@ -795,15 +799,6 @@ $('#btnReset').addEventListener('click', async () => {
 
 // ---------- Allgemeine Events ----------
 document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => zeigeAnsicht(tab.dataset.view)));
-
-$('#ortWahl').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-ort]');
-  if (!b) return;
-  ort = b.dataset.ort;
-  try { localStorage.setItem('lager-bhf-staben-ansicht', ort); } catch { /* egal */ }
-  renderBestand();
-  renderWarnungen();
-});
 
 $('#btnNeu').addEventListener('click', () => openArtikel());
 $('#suche').addEventListener('input', renderBestand);

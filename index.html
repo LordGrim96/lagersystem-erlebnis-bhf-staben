@@ -33,11 +33,12 @@
         <button id="btnLogout" class="btn small ghost">Abmelden</button>
       </div>
     </div>
-    <nav class="tabs" role="tablist" id="tabs">
-      <button class="tab active" data-view="bestand" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2h4v4l2 3v13H8V9l2-3z"/><path d="M8 13h8"/></svg><span>Bestand</span></button>
-      <button class="tab" data-view="verlauf" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Verlauf</span></button>
-      <button class="tab" data-view="einstellungen" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span>Einstellungen</span></button>
-      <button class="tab" data-view="daten" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M7 10l5 5 5-5M4 17v3h16v-3"/></svg><span>Daten</span></button>
+    <nav class="tabs" role="tablist" id="tabs" aria-label="Bereiche">
+      <button class="tab active" data-view="waggon" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M3 10h18M9 4v6M15 4v6"/><circle cx="7.5" cy="19" r="1.7"/><circle cx="16.5" cy="19" r="1.7"/></svg><span>Waggon</span><small>Zählen</small></button>
+      <button class="tab" data-view="lager" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9.5 12 4l9 5.5V20H3z"/><path d="M8 20v-7h8v7M8 16.5h8"/></svg><span>Lager</span><small>Liefern &amp; Bringen</small></button>
+      <button class="tab" data-view="uebersicht" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="3.5" width="7" height="7" rx="1"/><rect x="3.5" y="13.5" width="7" height="7" rx="1"/><rect x="13.5" y="13.5" width="7" height="7" rx="1"/></svg><span>Übersicht</span><small>Lager + Waggon</small></button>
+      <button class="tab" data-view="verlauf" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Verlauf</span><small>Alle Buchungen</small></button>
+      <button class="tab" data-view="einstellungen" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span>Einstellungen</span><small>Mengen &amp; Daten</small></button>
     </nav>
   </header>
 
@@ -76,12 +77,6 @@
         <p id="installText"><strong>Als App aufs Handy holen</strong><br>Eigenes Symbol, Vollbild, funktioniert auch ohne Internet.</p>
         <button id="btnInstall" class="btn primary">Installieren</button>
         <button id="btnInstallZu" class="btn ghost-x" aria-label="Hinweis schließen">✕</button>
-      </div>
-
-      <div id="ortWahl" class="ort-wahl" role="group" aria-label="Ansicht wählen">
-        <button type="button" data-ort="uebersicht" aria-pressed="true">Übersicht<small>Lager + Waggon</small></button>
-        <button type="button" data-ort="lager" aria-pressed="false">Lager<small>Liefern &amp; Bringen</small></button>
-        <button type="button" data-ort="waggon" aria-pressed="false">Waggon<small>Zählen</small></button>
       </div>
 
       <details id="warnungen" class="warn-box" hidden></details>
@@ -136,6 +131,32 @@
         <p>Neue Getränke legst du unter „Bestand“ mit „+ Neues Getränk“ an.</p>
         <button id="btnEinstSpeichern" class="btn primary" disabled>Einstellungen speichern</button>
       </div>
+
+      <!-- Daten: Sicherung, App, Löschen -->
+      <div class="einst-daten">
+      <div class="card">
+        <h2>Datensicherung</h2>
+        <p id="datenText"></p>
+        <div class="row">
+          <button id="btnExport" class="btn">Sicherung herunterladen (JSON)</button>
+          <button id="btnCsv" class="btn">Bestandsliste als CSV</button>
+          <label class="btn">
+            <span id="importLabel">Sicherung einspielen</span>
+            <input id="importFile" type="file" accept="application/json,.json" hidden>
+          </label>
+        </div>
+      </div>
+      <div class="card" id="appCard">
+        <h2>Als App installieren</h2>
+        <p id="appText">Mit eigenem Symbol auf dem Startbildschirm, im Vollbild und auch ohne Internet nutzbar.</p>
+        <div class="row"><button id="btnInstall2" class="btn primary">App installieren</button></div>
+      </div>
+      <div class="card danger" id="resetCard">
+        <h2>Alles löschen</h2>
+        <p>Entfernt alle Getränke und Buchungen aus diesem Browser.</p>
+        <button id="btnReset" class="btn danger">Alle Daten löschen</button>
+      </div>
+      </div>
     </section>
 
     <!-- Verlauf -->
@@ -170,31 +191,6 @@
       </div>
     </section>
 
-    <!-- Daten -->
-    <section id="view-daten" class="view">
-      <div class="card">
-        <h2>Datensicherung</h2>
-        <p id="datenText"></p>
-        <div class="row">
-          <button id="btnExport" class="btn">Sicherung herunterladen (JSON)</button>
-          <button id="btnCsv" class="btn">Bestandsliste als CSV</button>
-          <label class="btn">
-            <span id="importLabel">Sicherung einspielen</span>
-            <input id="importFile" type="file" accept="application/json,.json" hidden>
-          </label>
-        </div>
-      </div>
-      <div class="card" id="appCard">
-        <h2>Als App installieren</h2>
-        <p id="appText">Mit eigenem Symbol auf dem Startbildschirm, im Vollbild und auch ohne Internet nutzbar.</p>
-        <div class="row"><button id="btnInstall2" class="btn primary">App installieren</button></div>
-      </div>
-      <div class="card danger" id="resetCard">
-        <h2>Alles löschen</h2>
-        <p>Entfernt alle Getränke und Buchungen aus diesem Browser.</p>
-        <button id="btnReset" class="btn danger">Alle Daten löschen</button>
-      </div>
-    </section>
   </main>
 
   <!-- Dialog: Getränk anlegen/bearbeiten -->
