@@ -8,7 +8,7 @@ Läuft im Browser auf PC, Tablet und Handy – ohne Installation.
 
 - **Getränke** anlegen und bearbeiten (Bezeichnung, Sorte, Einzelstück wie Flasche/Dose, Stück pro Kiste, Mindestbestände, Notiz)
 - **Gezählt wird in Einzelstücken.** Kisten sind nur Eingabehilfe bei Lieferungen (2 Kisten à 24 = 48 Flaschen) und Orientierung im Lager
-- **Lager und Waggon getrennt**: Umschalter zwischen *Übersicht*, *Lager* und *Waggon*
+- **Navigation**: Waggon (Startseite) · Lager · Übersicht · Verlauf · Einstellungen (inkl. Datensicherung)
   - **Waggon zählen**: pro Getränk nur eingeben, wie viel noch da ist → die App zeigt sofort, wie viel
     bis zur Mindeststückzahl **nachgefüllt** werden muss (die Differenz wird als Verkauf gebucht)
   - **Lager**: zeigt pro Getränk „Zum Waggon bringen“ – mit „✓ Gebracht“ bzw. „Alles zum Waggon gebracht“
