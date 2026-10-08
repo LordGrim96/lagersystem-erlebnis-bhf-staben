@@ -230,6 +230,14 @@ table.list { width: 100%; border-collapse: collapse; }
 .kisten { color: var(--muted); font-weight: 500; }
 .warn-box summary { cursor: pointer; font-weight: 800; color: var(--crit); list-style-position: inside; }
 .warn-box[open] summary { margin-bottom: 8px; }
+.offline-box {
+  padding: 10px 16px; font-size: 14px; line-height: 1.4;
+  background: var(--move-bg); color: var(--text); border-bottom: 2px solid var(--move);
+}
+.wartend {
+  display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 4px; font-size: 11px;
+  text-transform: none; letter-spacing: 0; color: var(--move); border: 1px dashed var(--move);
+}
 .frage-text { margin: 0; white-space: pre-line; }
 .muted-text { color: var(--muted); margin: 0; }
 .btn:disabled { opacity: .6; cursor: progress; }

@@ -192,15 +192,74 @@ async function alleZeilen(tabelle, sortierung) {
   }
 }
 
+// ---------- Offline: letzter Stand + Warteschlange für Buchungen ----------
+// Ohne Netz zeigt die App den zuletzt geladenen Stand. Buchungen (Lieferung, Gebracht,
+// Zählung, Verkauf) werden auf dem Gerät gesammelt und hochgeladen, sobald wieder Netz da ist.
+const CACHE_KEY = 'lager-bhf-staben-cache';
+const QUEUE_KEY = 'lager-bhf-staben-warteschlange';
+const speicher = {
+  lesen(key, ersatz) {
+    try { return JSON.parse(localStorage.getItem(key) || 'null') ?? ersatz; } catch { return ersatz; }
+  },
+  schreiben(key, wert) {
+    try { localStorage.setItem(key, JSON.stringify(wert)); } catch { /* Speicher voll/gesperrt */ }
+  },
+};
+let warteschlange = speicher.lesen(QUEUE_KEY, []);
+let offline = false;          // letzter Ladeversuch ohne Verbindung
+let angemeldeterNutzer = null; // für den Start ohne Netz
+const istNetzFehler = (err) => /fetch|network|load failed|verbindung|timeout|offline/i.test(err?.message || String(err));
+const OFFLINE_NUR_ONLINE = 'Ohne Internet können Getränke und Einstellungen nicht geändert werden. '
+  + 'Buchen und Zählen geht auch offline.';
+
+// Wendet eine noch nicht hochgeladene Buchung auf den angezeigten Stand an
+function vorgemerktAnwenden(st, q) {
+  const a = st.artikel.find((x) => x.id === q.artikelId);
+  if (!a) return;
+  a.bestand = round(a.bestand + WIRKUNG[q.typ].lager * q.menge);
+  a.waggon = round(a.waggon + WIRKUNG[q.typ].waggon * q.menge);
+  st.buchungen.push({
+    id: q.id, artikelId: a.id, artikelName: a.name, typ: q.typ, menge: q.menge,
+    bestandDanach: a.bestand, waggonDanach: a.waggon, person: q.person, notiz: q.notiz,
+    datum: q.zeit, wartend: true,
+  });
+}
+
 const cloudStore = {
   cloud: true,
   async laden() {
-    const [artikel, buchungen] = await Promise.all([
-      alleZeilen('artikel', 'name'), alleZeilen('buchungen', 'datum'),
-    ]);
-    state = { artikel: artikel.map(mapArtikel), buchungen: buchungen.map(mapBuchung) };
+    try {
+      if (!navigator.onLine) throw new Error('offline');
+      const [artikel, buchungen] = await Promise.all([
+        alleZeilen('artikel', 'name'), alleZeilen('buchungen', 'datum'),
+      ]);
+      state = { artikel: artikel.map(mapArtikel), buchungen: buchungen.map(mapBuchung) };
+      speicher.schreiben(CACHE_KEY, { nutzer: angemeldeterNutzer, state });
+      offline = false;
+    } catch (err) {
+      const cache = speicher.lesen(CACHE_KEY, null);
+      if (!istNetzFehler(err) || !cache) throw err;
+      state = cache.state;
+      offline = true;
+    }
+    warteschlange.forEach((q) => vorgemerktAnwenden(state, q));
+  },
+  // Buchung für später merken und sofort im angezeigten Stand berücksichtigen
+  vormerken(artikelId, typ, menge, person, notiz) {
+    const a = findArtikel(artikelId);
+    const q = {
+      id: `offline-${uid()}`, artikelId, artikelName: a?.name ?? '', typ, menge, person, notiz,
+      zeit: new Date().toISOString(),
+    };
+    warteschlange.push(q);
+    speicher.schreiben(QUEUE_KEY, warteschlange);
+    vorgemerktAnwenden(state, q);
+    offline = true;
+    renderOffline();
+    return 'vorgemerkt';
   },
   async artikelSpeichern(daten, id) {
+    if (!navigator.onLine) throw new Error(OFFLINE_NUR_ONLINE);
     const q = id
       ? sb.from('artikel').update(artikelZeile(daten)).eq('id', id)
       : sb.from('artikel').insert(artikelZeile(daten));
@@ -210,20 +269,26 @@ const cloudStore = {
     return mapArtikel(data);
   },
   async artikelLoeschen(id) {
+    if (!navigator.onLine) throw new Error(OFFLINE_NUR_ONLINE);
     const { error } = await sb.from('artikel').delete().eq('id', id);
     dbFehler(error);
     await this.laden();
   },
   async buchen(artikelId, typ, menge, person, notiz, { neuLaden = true } = {}) {
+    // Ohne Netz (oder solange noch Offline-Buchungen warten, damit die Reihenfolge stimmt) vormerken
+    if (!navigator.onLine || warteschlange.length) return this.vormerken(artikelId, typ, menge, person, notiz);
     const { error } = await sb.rpc('buchen', {
       p_artikel: artikelId, p_typ: typ, p_menge: menge, p_person: person, p_notiz: notiz,
     });
+    if (error && istNetzFehler(error)) return this.vormerken(artikelId, typ, menge, person, notiz);
     dbFehler(error);
     if (neuLaden) await this.laden();
+    return 'gebucht';
   },
   // Übernimmt Getränke und aktuelle Bestände aus einer Sicherung (z. B. aus dem lokalen Modus).
   // Der alte Buchungsverlauf wird dabei nicht übertragen.
   async importieren(data) {
+    if (!navigator.onLine) throw new Error(OFFLINE_NUR_ONLINE);
     for (const a of data.artikel) {
       const { data: neu, error } = await sb.from('artikel').insert(artikelZeile({
         name: a.name, sorte: a.sorte || '', einheit: a.einheit || 'Flasche', proKiste: Number(a.proKiste) || 0,
@@ -258,9 +323,11 @@ async function buchen(artikelId, typ, menge, person, notiz) {
     throw new Error(`So viel ist nicht im Waggon – vorhanden: ${mengeText(a.waggon, a.einheit)}.`);
   }
   const vorher = { lager: statusLager(a), waggon: statusWaggon(a) };
-  await store.buchen(artikelId, typ, menge, person.trim(), notiz.trim());
+  const ergebnis = await store.buchen(artikelId, typ, menge, person.trim(), notiz.trim());
   const n = findArtikel(artikelId);
-  if (n && statusLager(n) === 'krit' && vorher.lager !== 'krit') {
+  if (ergebnis === 'vorgemerkt') {
+    toast('📶 Ohne Internet gespeichert – wird automatisch hochgeladen', 4000);
+  } else if (n && statusLager(n) === 'krit' && vorher.lager !== 'krit') {
     toast(`⚠️ ${a.name}: Mindestbestand im Lager erreicht – bitte nachbestellen!`, 5000);
   } else {
     const m = `${mengeText(menge, a.einheit)} ${a.name}`;
@@ -446,7 +513,7 @@ function renderVerlauf() {
     return `<tr>
       <td class="v-datum">${fmtDate(b.datum)}</td>
       <td class="v-name">${name}</td>
-      <td class="v-art typ-${b.typ}">${TYP_LABEL[b.typ] ?? esc(b.typ)}</td>
+      <td class="v-art typ-${b.typ}">${TYP_LABEL[b.typ] ?? esc(b.typ)}${b.wartend ? ' <span class="wartend" title="Noch nicht hochgeladen">⏳ wartet</span>' : ''}</td>
       <td class="v-menge num">${vorz}${esc(mengeText(b.menge, a ? a.einheit : ''))}</td>
       <td class="v-danach num">${danach}</td>
       <td class="v-person">${esc(b.person || '–')}</td>
@@ -792,7 +859,8 @@ $('#btnZaehlung').addEventListener('click', async () => {
     if (store.cloud) await store.laden();
     render();
     const offen = state.artikel.filter((a) => nachfuellen(a) > 0).length;
-    toast(offen ? `Zählung gespeichert – ${offen} ${offen === 1 ? 'Getränk' : 'Getränke'} nachfüllen (siehe Lager)` : 'Zählung gespeichert – Waggon ist voll', 4000);
+    const ohneNetz = warteschlange.length ? ' · 📶 ohne Internet gespeichert' : '';
+    toast((offen ? `Zählung gespeichert – ${offen} ${offen === 1 ? 'Getränk' : 'Getränke'} nachfüllen (siehe Lager)` : 'Zählung gespeichert – Waggon ist voll') + ohneNetz, 4000);
   } catch (err) {
     hinweis('Zählung nicht gespeichert', err.message);
     await neuLaden();
@@ -817,7 +885,7 @@ $('#artikelListe').addEventListener('click', async (e) => {
   const n = Math.min(nachfuellen(a), a.bestand);
   try {
     await bringen([a.id]);
-    toast(`In den Waggon gebracht: ${mengeText(n, a.einheit)} ${a.name}`);
+    toast(`In den Waggon gebracht: ${mengeText(n, a.einheit)} ${a.name}${warteschlange.length ? ' · 📶 ohne Internet gespeichert' : ''}`);
   } catch (err) {
     hinweis('Nicht gebucht', err.message);
     await neuLaden();
@@ -829,7 +897,7 @@ $('#btnAllesGebracht').addEventListener('click', async () => {
   if (!(await frage('Alles zum Waggon gebracht?', text, { ok: 'Ja, alles gebracht' }))) return;
   try {
     await bringen(offen.map((a) => a.id));
-    toast('Waggon nachgefüllt');
+    toast(`Waggon nachgefüllt${warteschlange.length ? ' · 📶 ohne Internet gespeichert' : ''}`);
   } catch (err) {
     hinweis('Nicht gebucht', err.message);
     await neuLaden();
@@ -886,16 +954,71 @@ function setSync(ok, text) {
   s.title = text;
 }
 
+// ---------- Offline-Hinweis und Hochladen ----------
+function renderOffline() {
+  const box = $('#offlineBox');
+  if (!store.cloud) { box.hidden = true; return; }
+  const ohneNetz = offline || !navigator.onLine;
+  const n = warteschlange.length;
+  box.hidden = !ohneNetz && !n;
+  if (box.hidden) return;
+  const wartend = n ? ` · <strong>${n} ${n === 1 ? 'Buchung wartet' : 'Buchungen warten'}</strong> auf Upload` : '';
+  box.innerHTML = ohneNetz
+    ? `📶 <strong>Offline</strong> – du siehst den letzten Stand${wartend}. Buchen und Zählen geht weiter, `
+      + 'hochgeladen wird automatisch, sobald wieder Internet da ist.'
+    : `⏳ Lade ${n} ${n === 1 ? 'Offline-Buchung' : 'Offline-Buchungen'} hoch …`;
+  if (ohneNetz) setSync(false, 'Offline – zeigt den letzten Stand');
+}
+
+let laedtHoch = false;
+async function hochladen() {
+  if (laedtHoch || !warteschlange.length || !navigator.onLine || store !== cloudStore || !sb || !angemeldeterNutzer) return;
+  laedtHoch = true;
+  renderOffline();
+  let ok = 0;
+  const fehler = [];
+  try {
+    while (warteschlange.length) {
+      const q = warteschlange[0];
+      // Erfassungszeit festhalten, wenn die Buchung erst später ankommt
+      const spaet = Date.now() - new Date(q.zeit).getTime() > 2 * 60 * 1000;
+      const notiz = spaet ? [q.notiz, `offline erfasst ${fmtDate(q.zeit)}`].filter(Boolean).join(' · ') : q.notiz;
+      const { error } = await sb.rpc('buchen', {
+        p_artikel: q.artikelId, p_typ: q.typ, p_menge: q.menge, p_person: q.person, p_notiz: notiz,
+      });
+      if (error && istNetzFehler(error)) break; // weiterhin kein Netz – später nochmal
+      if (error) fehler.push(`${q.artikelName} (${TYP_LABEL[q.typ]} ${fmt(q.menge)}): ${error.message}`);
+      else ok += 1;
+      warteschlange.shift();
+      speicher.schreiben(QUEUE_KEY, warteschlange);
+    }
+  } finally {
+    laedtHoch = false;
+  }
+  await neuLaden();
+  if (ok) toast(`✓ ${ok} ${ok === 1 ? 'Offline-Buchung' : 'Offline-Buchungen'} hochgeladen`, 4000);
+  if (fehler.length) {
+    hinweis('Nicht alle Offline-Buchungen übernommen',
+      `${fehler.join('\n')}\n\nWahrscheinlich hat inzwischen jemand anderes gebucht. Bitte Bestand prüfen und bei Bedarf neu buchen.`);
+  }
+}
+
+window.addEventListener('online', () => { renderOffline(); hochladen(); spaeterNeuLaden(); });
+window.addEventListener('offline', () => { offline = true; renderOffline(); });
+setInterval(hochladen, 30 * 1000);
+
 // ---------- Start ----------
 async function neuLaden() {
   try {
     await store.laden();
-    if (store.cloud) setSync(true, 'Verbunden – Daten aktuell');
+    if (store.cloud && !offline) setSync(true, 'Verbunden – Daten aktuell');
   } catch (err) {
     setSync(false, err.message);
     toast(err.message, 5000);
   }
   render();
+  renderOffline();
+  if (!offline && warteschlange.length) hochladen();
 }
 
 // Änderungen von anderen Geräten zusammenfassen und dann neu laden
@@ -916,6 +1039,7 @@ let liveKanal = null;
 
 async function angemeldet(session) {
   const user = session.user;
+  angemeldeterNutzer = { id: user.id, email: user.email, user_metadata: user.user_metadata || {} };
   $('#userBox').hidden = false;
   $('#userName').textContent = user.user_metadata?.name || user.email;
   letztePerson ||= user.user_metadata?.name || user.email.split('@')[0];
@@ -934,6 +1058,8 @@ async function angemeldet(session) {
 
 function abgemeldet() {
   if (liveKanal) { sb.removeChannel(liveKanal); liveKanal = null; }
+  angemeldeterNutzer = null;
+  try { localStorage.removeItem(CACHE_KEY); } catch { /* egal */ }
   state = { artikel: [], buchungen: [] };
   render();
   $('#userBox').hidden = true;
@@ -1030,13 +1156,27 @@ async function start() {
     // Callback darf nicht selbst auf Supabase warten, daher entkoppeln
     setTimeout(() => (session ? angemeldet(session) : abgemeldet()), 0);
   });
-  const { data } = await sb.auth.getSession();
-  if (!data.session && aktiv === null) abgemeldet();
+  const { data, error } = await sb.auth.getSession();
+  if (!data.session && aktiv === null) {
+    // Ohne Netz kann die Anmeldung nicht erneuert werden – dann mit dem letzten Stand weiterarbeiten
+    const cache = speicher.lesen(CACHE_KEY, null);
+    if (cache?.nutzer && (!navigator.onLine || istNetzFehler(error))) {
+      aktiv = cache.nutzer.id;
+      angemeldet({ user: cache.nutzer });
+    } else {
+      abgemeldet();
+    }
+  }
 
   // Beim Zurückkehren zur App (z. B. Handy entsperrt) Daten auffrischen
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && aktiv) spaeterNeuLaden();
   });
+}
+
+// App-Dateien fürs Arbeiten ohne Internet auf dem Gerät speichern (nur über https)
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Offline-Speicher nicht verfügbar', e));
 }
 
 start();

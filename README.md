@@ -25,6 +25,9 @@ Läuft im Browser auf PC, Tablet und Handy – ohne Installation.
   („nachbestellen“/„auffüllen“), bis 25 % darüber als „knapp“ markiert
 - **Gemeinsame Datenbank** (optional, Supabase): alle Geräte sehen dieselben Daten, Änderungen
   erscheinen live; Zugang nur mit Anmeldung
+- **Funktioniert auch ohne Internet**: Die App wird auf dem Gerät gespeichert und startet auch ohne Netz
+  mit dem zuletzt geladenen Stand. Lieferungen, „Gebracht“, Zählungen und Verkäufe werden zwischengespeichert
+  und automatisch hochgeladen, sobald wieder Internet da ist (Getränke anlegen und Einstellungen nur online)
 - **Datensicherung** als JSON und Bestandsliste als CSV für Excel
 
 ## Zwei Betriebsarten
@@ -91,5 +94,6 @@ bei jedem Push auf `main`.
 | `style.css` | Gestaltung (inkl. Handy-Ansicht und Dark Mode) |
 | `app.js` | Logik, lokale Speicherung bzw. Datenbank-Anbindung, Export/Import |
 | `config.js` | Zugangsdaten zur Datenbank (leer = lokaler Modus) |
+| `sw.js` | Speichert die App-Dateien fürs Arbeiten ohne Internet |
 | `supabase/schema.sql` | Tabellen, Zugriffsregeln und Buchungsfunktion für Supabase |
 | `.github/workflows/pages.yml` | Automatische Veröffentlichung über GitHub Pages |
