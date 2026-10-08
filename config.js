@@ -5,6 +5,6 @@
 // Der "anon"-Schlüssel ist öffentlich gedacht und darf hier stehen –
 // geschützt sind die Daten durch die Anmeldung und die Regeln in supabase/schema.sql.
 window.LAGER_CONFIG = {
-  supabaseUrl: '',      // z. B. 'https://abcdefgh.supabase.co'
-  supabaseAnonKey: '',  // langer Schlüssel, beginnt mit 'eyJ…' oder 'sb_publishable_…'
+  supabaseUrl: 'https://qigucziovbvhyiklzukt.supabase.co',
+  supabaseAnonKey: 'sb_publishable_FdmKmTaHSTgbxfQihCMYTg_xKdovw9m',
 };
