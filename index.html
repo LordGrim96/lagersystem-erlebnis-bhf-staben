@@ -279,37 +279,52 @@
   <!-- Dialog: Buchen -->
   <dialog id="dlgBuchung">
     <form id="formBuchung">
-      <h2 id="dlgBuchungTitel">Buchen</h2>
-      <p id="dlgBuchungInfo" class="muted"></p>
-      <div class="seg">
-        <label><input type="radio" name="typ" value="ein" checked><span>+ Lieferung<small>ins Lager</small></span></label>
-        <label><input type="radio" name="typ" value="aus"><span>Lager → Waggon<small>auffüllen</small></span></label>
-        <label><input type="radio" name="typ" value="verkauf"><span>− Verkauft<small>aus dem Waggon</small></span></label>
+      <header class="buchung-kopf">
+        <h2 id="dlgBuchungTitel">Getränk</h2>
+        <div class="bestand-chips">
+          <span class="chip">Lager <strong id="chipLager">0</strong></span>
+          <span class="chip">Waggon <strong id="chipWaggon">0</strong></span>
+        </div>
+      </header>
+
+      <div class="seg" role="radiogroup" aria-label="Was möchtest du buchen?">
+        <label><input type="radio" name="typ" value="ein" checked><span>Lieferung<small>ins Lager</small></span></label>
+        <label><input type="radio" name="typ" value="aus"><span>In den Waggon<small>vom Lager</small></span></label>
+        <label><input type="radio" name="typ" value="verkauf"><span>Verkauft<small>aus dem Waggon</small></span></label>
       </div>
-      <div class="eingabe-wahl" id="eingabeWahl" hidden>
-        <span>Eingabe in</span>
-        <label><input type="radio" name="eingabe" value="stueck" checked> <span id="eingabeStueck">Flaschen</span></label>
-        <label><input type="radio" name="eingabe" value="kiste"> <span id="eingabeKiste">Kisten</span></label>
+
+      <div class="menge-block">
+        <div class="menge-kopf">
+          <label for="buchungMenge" id="mengeLabel">Wie viele?</label>
+          <div class="eingabe-wahl" id="eingabeWahl" hidden>
+            <label><input type="radio" name="eingabe" value="stueck" checked><span id="eingabeStueck">Flaschen</span></label>
+            <label><input type="radio" name="eingabe" value="kiste"><span id="eingabeKiste">Kisten</span></label>
+          </div>
+        </div>
+        <div class="stepper gross">
+          <button type="button" class="schritt" data-schritt="-1" aria-label="eins weniger">−</button>
+          <input id="buchungMenge" class="zaehl" name="menge" type="number" min="0" step="any" inputmode="decimal" placeholder="0" required>
+          <button type="button" class="schritt" data-schritt="1" aria-label="eins mehr">+</button>
+        </div>
+        <p id="vorschau" class="vorschau" aria-live="polite"></p>
       </div>
-      <div class="grid2">
-        <label>Menge *
-          <input name="menge" type="number" min="0.001" step="any" required>
-          <span id="umrechnung" class="umrechnung" hidden></span>
-        </label>
-        <label>Person
-          <input name="person" maxlength="60" list="personenListe">
-        </label>
-      </div>
-      <label id="zaehlenBox" hidden>Oder: so viel ist noch im Waggon (gezählt)
-        <input name="gezaehlt" type="number" min="0" step="any" placeholder="die verkaufte Menge wird ausgerechnet">
-      </label>
-      <label>Notiz
-        <input name="notiz" maxlength="200" placeholder="z. B. Getränkehandel, Sommerfest">
-      </label>
+
+      <details class="mehr">
+        <summary>Notiz hinzufügen</summary>
+        <div class="grid2">
+          <label>Notiz
+            <input name="notiz" maxlength="200" placeholder="z. B. Getränkehandel, Sommerfest">
+          </label>
+          <label>Gebucht von
+            <input name="person" maxlength="60" list="personenListe">
+          </label>
+        </div>
+      </details>
+
       <p id="buchungFehler" class="error" hidden></p>
       <menu>
         <button type="button" class="btn" data-close>Abbrechen</button>
-        <button class="btn primary">Buchen</button>
+        <button class="btn primary" id="btnBuchen">Buchen</button>
       </menu>
     </form>
   </dialog>
