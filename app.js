@@ -902,44 +902,69 @@ const formBuchung = $('#formBuchung');
 let buchungId = null;
 let letztePerson = '';
 
-const BUCHUNG_TITEL = {
-  ein: 'Lieferung ins Lager',
-  aus: 'Waggon aus dem Lager auffüllen',
-  verkauf: 'Verkauf im Waggon',
+// Text je Buchungsart: Frage über der Menge und Beschriftung des Buchen-Knopfs
+const BUCHUNG_TEXT = {
+  ein: { frage: 'kommen ins Lager?', knopf: 'Lieferung buchen' },
+  aus: { frage: 'kommen in den Waggon?', knopf: 'In den Waggon buchen' },
+  verkauf: { frage: 'wurden verkauft?', knopf: 'Verkauf buchen' },
 };
 
 function updateBuchungInfo() {
   const a = findArtikel(buchungId);
   if (!a) return;
-  const typ = formBuchung.elements.typ.value;
-  $('#dlgBuchungTitel').textContent = BUCHUNG_TITEL[typ];
-  $('#dlgBuchungInfo').innerHTML = `<strong>${esc(a.name)}</strong> · Lager: ${esc(lagerText(a))}`
-    + ` · Waggon: ${esc(mengeText(a.waggon, a.einheit))}`;
-  // Beim Verkauf alternativ den gezählten Rest im Waggon eingeben
-  $('#zaehlenBox').hidden = typ !== 'verkauf';
-  // Lieferung/Auffüllen wahlweise in Kisten eingeben (nur wenn "pro Kiste" bekannt ist)
+  const f = formBuchung.elements;
+  const typ = f.typ.value;
+  $('#dlgBuchungTitel').textContent = a.name;
+  $('#chipLager').textContent = lagerText(a);
+  $('#chipWaggon').textContent = mengeText(a.waggon, a.einheit);
+  // Lieferung/Auffüllen wahlweise in Kisten (nur wenn "Stück pro Kiste" bekannt ist)
   const kisten = typ !== 'verkauf' && a.proKiste > 0;
   $('#eingabeWahl').hidden = !kisten;
-  if (!kisten) formBuchung.elements.eingabe.value = 'stueck';
+  if (!kisten) f.eingabe.value = 'stueck';
   $('#eingabeStueck').textContent = PLURAL[a.einheit] ?? a.einheit;
-  $('#eingabeKiste').textContent = `Kisten à ${fmt(a.proKiste)}`;
+  $('#eingabeKiste').textContent = `Kisten (à ${fmt(a.proKiste)})`;
   updateUmrechnung();
-  formBuchung.elements.gezaehlt.max = a.waggon;
 }
 
-// Zeigt bei Kisten-Eingabe, wie viele Einzelstücke gebucht werden
+// Menge in Einzelstücken (bei Kisten-Eingabe umgerechnet)
 function stueckAusEingabe() {
   const a = findArtikel(buchungId);
   const f = formBuchung.elements;
   const n = Number(f.menge.value) || 0;
   return f.eingabe.value === 'kiste' && a ? round(n * a.proKiste) : n;
 }
+
+// Vorschau "Lager 5 → 29", Frage und Knopf passend zur Buchungsart
 function updateUmrechnung() {
   const a = findArtikel(buchungId);
+  if (!a) return;
   const f = formBuchung.elements;
-  const el = $('#umrechnung');
-  el.hidden = !(a && f.eingabe.value === 'kiste' && Number(f.menge.value) > 0);
-  if (!el.hidden) el.textContent = `= ${mengeText(stueckAusEingabe(), a.einheit)}`;
+  const typ = f.typ.value;
+  const kiste = f.eingabe.value === 'kiste';
+  const n = stueckAusEingabe();
+  $('#mengeLabel').textContent = `Wie viele ${kiste ? 'Kisten' : PLURAL[a.einheit] ?? a.einheit} ${BUCHUNG_TEXT[typ].frage}`;
+  const btn = $('#btnBuchen');
+  btn.textContent = BUCHUNG_TEXT[typ].knopf;
+  const el = $('#vorschau');
+  el.classList.remove('fehler');
+  if (!(n > 0)) {
+    el.innerHTML = '&nbsp;';
+    btn.disabled = true;
+    return;
+  }
+  const w = WIRKUNG[typ];
+  const teile = [];
+  if (w.lager) teile.push(['Lager', a.bestand, round(a.bestand + w.lager * n)]);
+  if (w.waggon) teile.push(['Waggon', a.waggon, round(a.waggon + w.waggon * n)]);
+  const zuWenig = teile.find(([, , nach]) => nach < 0);
+  btn.disabled = !!zuWenig;
+  if (zuWenig) {
+    el.classList.add('fehler');
+    el.textContent = `So viel ist nicht im ${zuWenig[0]} – vorhanden: ${mengeText(zuWenig[1], a.einheit)}`;
+    return;
+  }
+  el.innerHTML = (kiste ? `= ${esc(mengeText(n, a.einheit))} · ` : '')
+    + teile.map(([name, vor, nach]) => `${name} ${fmt(vor)} → <strong>${fmt(nach)}</strong>`).join(' · ');
 }
 
 function openBuchung(id, typ) {
@@ -947,10 +972,12 @@ function openBuchung(id, typ) {
   formBuchung.reset();
   formBuchung.elements.typ.value = typ;
   formBuchung.elements.person.value = letztePerson;
+  formBuchung.querySelector('details.mehr').open = false;
   $('#buchungFehler').hidden = true;
   updateBuchungInfo();
   dlgBuchung.showModal();
-  formBuchung.elements.menge.focus();
+  // Am PC gleich ins Mengenfeld; am Handy nicht, sonst verdeckt die Tastatur die −/+ Knöpfe
+  if (window.matchMedia('(pointer: fine)').matches) formBuchung.elements.menge.focus();
 }
 
 formBuchung.addEventListener('change', (e) => {
@@ -958,14 +985,6 @@ formBuchung.addEventListener('change', (e) => {
   if (e.target.name === 'eingabe') updateUmrechnung();
 });
 formBuchung.elements.menge.addEventListener('input', updateUmrechnung);
-
-// "Noch im Waggon gezählt" → verkaufte Menge = bisher im Waggon − gezählt
-formBuchung.elements.gezaehlt.addEventListener('input', (e) => {
-  const a = findArtikel(buchungId);
-  if (!a || e.target.value === '') return;
-  const verkauft = round(a.waggon - Number(e.target.value));
-  formBuchung.elements.menge.value = verkauft > 0 ? verkauft : '';
-});
 
 formBuchung.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -1102,7 +1121,7 @@ let halteTimer = null;
 let halteIntervall = null;
 let letzterDruck = 0; // Zeitpunkt des letzten Fingertipps/Mausdrucks auf − oder +
 const halteStopp = () => { clearTimeout(halteTimer); clearInterval(halteIntervall); halteTimer = halteIntervall = null; };
-$('#artikelListe').addEventListener('pointerdown', (e) => {
+document.addEventListener('pointerdown', (e) => {
   const knopf = e.target.closest('[data-schritt]');
   if (!knopf) return;
   e.preventDefault(); // kein Doppeltipp-Zoom, Fokus bleibt
@@ -1112,9 +1131,9 @@ $('#artikelListe').addEventListener('pointerdown', (e) => {
 });
 // Loslassen irgendwo (auch außerhalb des Knopfs) beendet das schnelle Zählen
 ['pointerup', 'pointercancel', 'blur'].forEach((ev) => window.addEventListener(ev, halteStopp));
-$('#artikelListe').addEventListener('pointerout', (e) => { if (e.target.closest('[data-schritt]')) halteStopp(); });
+document.addEventListener('pointerout', (e) => { if (e.target.closest('[data-schritt]')) halteStopp(); });
 // Tastatur (Enter/Leertaste auf dem Knopf); der Klick nach einem Fingertipp zählt nicht doppelt
-$('#artikelListe').addEventListener('click', (e) => {
+document.addEventListener('click', (e) => {
   const knopf = e.target.closest('[data-schritt]');
   if (knopf && Date.now() - letzterDruck > 800) schritt(knopf);
 });

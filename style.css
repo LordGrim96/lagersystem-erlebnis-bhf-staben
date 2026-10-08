@@ -339,6 +339,32 @@ input.zaehl.fehler { border-color: var(--crit); color: var(--crit); background: 
 .meter.warn > span { background: var(--warn); }
 .meter.krit > span { background: var(--crit); }
 .meter > i { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text); border-radius: 1px; }
+.buchung-kopf { display: flex; flex-direction: column; gap: 8px; }
+.buchung-kopf h2 { font-size: 26px; }
+.bestand-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex; gap: 6px; align-items: baseline; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg); font-size: 13px; color: var(--muted);
+}
+.chip strong { color: var(--text); font-size: 15px; font-variant-numeric: tabular-nums; }
+.menge-block { display: flex; flex-direction: column; gap: 8px; }
+.menge-kopf { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; }
+dialog .menge-kopf > label { font-size: 15px; color: var(--text); font-weight: 700; }
+.menge-block .eingabe-wahl { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; }
+.menge-block .eingabe-wahl label { position: relative; }
+.menge-block .eingabe-wahl input { position: absolute; opacity: 0; width: 0; }
+.menge-block .eingabe-wahl span { display: block; padding: 5px 10px; border-radius: 6px; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; }
+.menge-block .eingabe-wahl input:checked + span { background: var(--text); color: var(--bg); }
+.menge-block .eingabe-wahl input:focus-visible + span { outline: 2px solid var(--accent); }
+.stepper.gross { display: grid; grid-template-columns: 60px 1fr 60px; gap: 8px; }
+.stepper.gross .schritt { width: auto; min-height: 56px; font-size: 28px; }
+.stepper.gross input.zaehl { width: 100%; height: 56px; font-size: 26px; }
+.vorschau { margin: 0; min-height: 1.5em; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.vorschau strong { color: var(--text); }
+.vorschau.fehler { color: var(--crit); font-weight: 700; }
+details.mehr summary { cursor: pointer; color: var(--muted); font-weight: 700; font-size: 14px; }
+details.mehr[open] summary { margin-bottom: 10px; }
+#btnBuchen:disabled { opacity: .45; cursor: not-allowed; }
 .frage-text { margin: 0; white-space: pre-line; }
 .muted-text { color: var(--muted); margin: 0; }
 .btn:disabled { opacity: .6; cursor: progress; }
