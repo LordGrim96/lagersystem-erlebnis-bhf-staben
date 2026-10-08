@@ -1571,7 +1571,26 @@ renderInstall();
 
 // App-Dateien fürs Arbeiten ohne Internet auf dem Gerät speichern (nur über https)
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Offline-Speicher nicht verfügbar', e));
+  // Neue App-Version: automatisch neu laden – außer jemand tippt gerade Zahlen im Waggon ein
+  const warSchonAktiv = !!navigator.serviceWorker.controller;
+  let neuGeladen = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!warSchonAktiv || neuGeladen) return;
+    if (Object.keys(eingabenMerken()).length) {
+      toast('Neue Version verfügbar – sie wird beim nächsten Öffnen geladen', 5000);
+      return;
+    }
+    neuGeladen = true;
+    location.reload();
+  });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+    .then((reg) => {
+      // Beim Zurückkehren zur App nach Updates schauen
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
+    })
+    .catch((e) => console.warn('Offline-Speicher nicht verfügbar', e));
 }
 
 start();
