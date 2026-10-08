@@ -426,10 +426,15 @@ const nameHtml = (a) => (istAdmin()
   : `<span class="name-text">${esc(a.name)}</span>`);
 
 // Spalten je Ansicht: [Kopf, Zelle(a), Zahlenspalte?]
+// Lager: nur "vom Lager in den Waggon" – Menge ist mit dem vorgeschlagen, was im Waggon fehlt
+const vorschlag = (a) => Math.max(0, Math.min(nachfuellen(a), a.bestand));
+const bringenFeld = (a) => stepper(`<input class="zaehl" type="number" min="0" step="1" inputmode="numeric"
+  data-bringen-menge="${a.id}" placeholder="0" value="${vorschlag(a) || ''}" aria-label="${esc(a.name)}: in den Waggon">`, a.name);
 const SPALTEN = {
   lager: [
-    ['Im Lager', (a) => `${lagerHtml(a)}${statusLager(a) === 'ok' ? '' : ` ${badge('lager', statusLager(a))}`}`, true],
-    ['Zum Waggon bringen', zumWaggonText, true],
+    ['Im Lager', lagerHtml, true],
+    ['Im Waggon', (a) => esc(mengeText(a.waggon, a.einheit)), true],
+    ['In den Waggon', bringenFeld, true],
   ],
   // Übersicht: reine Anzeige – nur was im Lager und im Waggon ist
   uebersicht: [
@@ -437,14 +442,8 @@ const SPALTEN = {
     ['Waggon', (a) => esc(mengeText(a.waggon, a.einheit)), true],
   ],
 };
-const KNOEPFE = {
-  lager: (a) => `<button class="btn small in" data-buchen="${a.id}" data-typ="ein">+ Lieferung</button>
-        <button class="btn small move" data-bringen="${a.id}" ${nachfuellen(a) && a.bestand ? '' : 'disabled'}>✓ Gebracht</button>`,
-  waggon: () => '',
-  uebersicht: () => '',
-};
 const istKritisch = (a) => ({
-  lager: statusLager(a) === 'krit' || nachfuellen(a) > 0,
+  lager: false,
   waggon: nachfuellen(a) > 0,
   uebersicht: false,
 }[ort]);
@@ -454,12 +453,14 @@ const istKritisch = (a) => ({
 function eingabenMerken() {
   const werte = {};
   document.querySelectorAll('#artikelListe input.zaehl').forEach((f) => {
-    if (f.value !== '') werte[f.dataset.zaehl ? `z:${f.dataset.zaehl}` : `v:${f.dataset.verbraucht}`] = f.value;
+    // Lager: nur selbst geänderte Mengen merken (sonst gilt der aktuelle Vorschlag)
+    if (f.dataset.bringenMenge) { if (f.dataset.bearbeitet) werte[`b:${f.dataset.bringenMenge}`] = f.value; }
+    else if (f.value !== '') werte[f.dataset.zaehl ? `z:${f.dataset.zaehl}` : `v:${f.dataset.verbraucht}`] = f.value;
   });
   return werte;
 }
 function eingabenLeeren() {
-  document.querySelectorAll('#artikelListe input.zaehl').forEach((f) => { f.value = ''; });
+  document.querySelectorAll('#artikelListe input.zaehl').forEach((f) => { f.value = ''; delete f.dataset.bearbeitet; });
 }
 
 function renderBestand() {
@@ -476,11 +477,11 @@ function renderBestand() {
   $('#btnZaehlung').textContent = waggonModus === 'verbraucht' ? 'Verbrauch speichern' : 'Zählung speichern';
   $('#btnZaehlung').disabled = true;
   const nurAnzeige = ort === 'uebersicht';
-  $('#bestandKopf').innerHTML = `<tr><th>Getränk</th>${spalten.map(([kopf, , num]) => `<th class="${num ? 'num' : ''}">${kopf}</th>`).join('')}${nurAnzeige ? '' : '<th class="actions"></th>'}</tr>`;
+  $('#bestandKopf').innerHTML = `<tr><th>Getränk</th>${spalten.map(([kopf, , num]) => `<th class="${num ? 'num' : ''}">${kopf}</th>`).join('')}</tr>`;
 
-  // In der Übersicht gibt es keine Suche/Filter – immer alles zeigen
-  const q = nurAnzeige ? '' : $('#suche').value.trim().toLowerCase();
-  const nurKrit = !nurAnzeige && $('#nurKritisch').checked;
+  // Suche/Filter gibt es nur im Waggon – Übersicht und Lager zeigen immer alles
+  const q = ort === 'waggon' ? $('#suche').value.trim().toLowerCase() : '';
+  const nurKrit = ort === 'waggon' && $('#nurKritisch').checked;
   const liste = state.artikel
     .filter((a) => !q || [a.name, sorteName(a.sorte)].some((t) => (t || '').toLowerCase().includes(q)))
     .filter((a) => !nurKrit || istKritisch(a));
@@ -489,30 +490,30 @@ function renderBestand() {
       <td data-k="name">${nurAnzeige ? `<span class="name-text">${esc(a.name)}</span>` : nameHtml(a)}
         ${a.notiz && !nurAnzeige ? `<span class="small-note">${esc(a.notiz)}</span>` : ''}</td>
       ${spalten.map(([kopf, zelle, num]) => `<td class="${num ? 'num' : ''}" data-label="${kopf}">${zelle(a)}</td>`).join('')}
-      ${nurAnzeige ? '' : `<td class="actions">${KNOEPFE[ort](a)}</td>`}
     </tr>`;
   // Nach Sorte gruppiert; unbekannte Sorten landen unter "Sonstiges"
   const gruppe = (a) => (SORTEN.includes(a.sorte || '') ? a.sorte || '' : '');
   $('#artikelListe').innerHTML = SORTEN.map((sorte) => {
     const inGruppe = liste.filter((a) => gruppe(a) === sorte).sort(byName);
     if (!inGruppe.length) return '';
-    return `<tr class="gruppe"><th colspan="${spalten.length + (nurAnzeige ? 1 : 2)}">${esc(sorteName(sorte))}</th></tr>` + inGruppe.map(zeile).join('');
+    return `<tr class="gruppe"><th colspan="${spalten.length + 1}">${esc(sorteName(sorte))}</th></tr>` + inGruppe.map(zeile).join('');
   }).join('');
 
   // Gerettete Eingaben wieder einsetzen (inkl. Vorschau "nachfüllen")
   Object.entries(eingaben).forEach(([key, wert]) => {
     const [art, id] = [key.slice(0, 1), key.slice(2)];
-    const f = document.querySelector(art === 'z' ? `[data-zaehl="${id}"]` : `[data-verbraucht="${id}"]`);
+    const f = document.querySelector({ z: `[data-zaehl="${id}"]`, v: `[data-verbraucht="${id}"]`, b: `[data-bringen-menge="${id}"]` }[art]);
     if (!f) return;
     f.value = wert;
     f.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
+  renderGrafik(liste, gruppe);
+
   // Leisten unter der Tabelle: Zählung speichern (Waggon) bzw. alles gebracht (Lager)
   $('#zaehlLeiste').hidden = ort !== 'waggon' || !state.artikel.length;
-  const offen = state.artikel.filter((a) => nachfuellen(a) > 0 && a.bestand > 0);
-  $('#bringenLeiste').hidden = ort !== 'lager' || !offen.length;
-  $('#btnAllesGebracht').textContent = `✓ Alles zum Waggon gebracht (${offen.length} ${offen.length === 1 ? 'Getränk' : 'Getränke'})`;
+  $('#bringenLeiste').hidden = ort !== 'lager' || !state.artikel.length;
+  bringenKnopf();
 
   const leer = $('#leer');
   leer.hidden = liste.length > 0;
@@ -538,9 +539,74 @@ function wannText(iso) {
   return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + ` ${uhr}`;
 }
 
+// ---------- Übersicht: Grafik (gestapelter Balken Lager + Waggon je Getränk) ----------
+// Eine Achse für alle Getränke; Zahlen stehen direkt am Balken, die Tabelle darunter ist die Textfassung.
+function schoeneSkala(max) {
+  if (max <= 0) return { ende: 10, schritt: 5 };
+  const roh = max / 4;
+  const zehner = 10 ** Math.floor(Math.log10(roh));
+  const schritt = [1, 2, 5, 10].map((f) => f * zehner).find((x) => x >= roh);
+  return { ende: Math.ceil(max / schritt) * schritt, schritt };
+}
+
+function renderGrafik(liste, gruppe) {
+  const fig = $('#grafik');
+  fig.hidden = ort !== 'uebersicht' || !liste.length;
+  if (fig.hidden) return;
+  const max = Math.max(...liste.map((a) => a.bestand + a.waggon));
+  const { ende, schritt } = schoeneSkala(max);
+  const pct = (n) => (n / ende) * 100;
+
+  const ticks = [];
+  for (let t = 0; t <= ende; t += schritt) ticks.push(t);
+  $('#grafikAchse').innerHTML = `<span></span><div class="achse-skala">${ticks.map((t) => `<span style="left:${pct(t)}%">${fmt(t)}</span>`).join('')}</div><span></span>`;
+  const gitter = ticks.map((t) => `<i style="left:${pct(t)}%"></i>`).join('');
+
+  const zeile = (a) => {
+    const gesamt = round(a.bestand + a.waggon);
+    const l = pct(a.bestand);
+    const w = pct(a.waggon);
+    // Zahl im Segment nur, wenn genug Platz ist (sonst: Info beim Antippen + Tabelle)
+    const label = (n, breite) => (breite >= 9 ? `<b>${fmt(n)}</b>` : '');
+    return `<div class="grafik-zeile" data-grafik="${a.id}" tabindex="0"
+        aria-label="${esc(a.name)}: Lager ${fmt(a.bestand)}, Waggon ${fmt(a.waggon)}">
+      <span class="grafik-name">${esc(a.name)}</span>
+      <span class="grafik-balken">${gitter}
+        <span class="seg-lager ${a.waggon ? '' : 'ende'}" style="width:${l}%">${label(a.bestand, l)}</span>${a.bestand && a.waggon ? '<span class="seg-luecke"></span>' : ''}<span class="seg-waggon ende" style="width:${w}%">${label(a.waggon, w)}</span>
+      </span>
+      <span class="grafik-summe">${fmt(gesamt)}</span>
+    </div>`;
+  };
+  $('#grafikZeilen').innerHTML = SORTEN.map((sorte) => {
+    const inGruppe = liste.filter((a) => gruppe(a) === sorte).sort(byName);
+    if (!inGruppe.length) return '';
+    return `<div class="grafik-gruppe">${esc(sorteName(sorte))}</div>${inGruppe.map(zeile).join('')}`;
+  }).join('');
+  $('#grafikTipp').hidden = true;
+}
+
+// Info zur Zeile beim Drüberfahren (Maus) bzw. Antippen/Fokus (Handy, Tastatur)
+function grafikTipp(zeile) {
+  const tipp = $('#grafikTipp');
+  const a = zeile && findArtikel(zeile.dataset.grafik);
+  if (!a) { tipp.hidden = true; return; }
+  tipp.innerHTML = `<strong>${esc(a.name)}</strong>
+    <span><i class="farbe lager"></i>Lager ${esc(lagerText(a))}</span>
+    <span><i class="farbe waggon"></i>Waggon ${esc(mengeText(a.waggon, a.einheit))}</span>
+    <span class="still">Gesamt ${esc(mengeText(round(a.bestand + a.waggon), a.einheit))}</span>`;
+  tipp.hidden = false;
+  const fig = $('#grafik').getBoundingClientRect();
+  const r = zeile.getBoundingClientRect();
+  tipp.style.top = `${r.bottom - fig.top + 4}px`;
+}
+$('#grafikZeilen').addEventListener('pointerover', (e) => grafikTipp(e.target.closest('.grafik-zeile')));
+$('#grafikZeilen').addEventListener('focusin', (e) => grafikTipp(e.target.closest('.grafik-zeile')));
+$('#grafik').addEventListener('pointerleave', () => { $('#grafikTipp').hidden = true; });
+$('#grafikZeilen').addEventListener('focusout', () => { $('#grafikTipp').hidden = true; });
+
 function renderWarnungen() {
-  // In der Übersicht übernehmen die Kacheln diese Aufgabe
-  const nachbestellen = ort === 'lager' ? state.artikel.filter((a) => statusLager(a) === 'krit').sort(byName) : [];
+  // Übersicht und Lager bleiben bewusst schlicht – kein Warnkasten
+  const nachbestellen = [];
   const bringen = [];
   const box = $('#warnungen');
   box.hidden = !nachbestellen.length && !bringen.length;
@@ -888,11 +954,14 @@ function updateUmrechnung() {
     + teile.map(([name, vor, nach]) => `${name} ${fmt(vor)} → <strong>${fmt(nach)}</strong>`).join(' · ');
 }
 
-function openBuchung(id, typ) {
+function openBuchung(id, typ, { mitAuswahl = false } = {}) {
   buchungId = id;
   formBuchung.reset();
+  $('#artikelWahlBox').hidden = !mitAuswahl;
+  $('#buchungArtikel').value = id;
   formBuchung.elements.typ.value = typ;
   formBuchung.elements.person.value = letztePerson;
+  $('#buchungArtikel').value = id; // reset() setzt die Auswahl zurück
   formBuchung.querySelector('details.mehr').open = false;
   $('#buchungFehler').hidden = true;
   updateBuchungInfo();
@@ -1126,41 +1195,60 @@ $('#btnZaehlung').addEventListener('click', async () => {
   }
 });
 
-// Lager: gebracht → nachzufüllende Menge (soweit im Lager) in den Waggon buchen
-async function bringen(ids) {
-  for (const id of ids) {
-    const a = findArtikel(id);
-    const n = Math.min(nachfuellen(a), a.bestand);
-    if (n > 0) await store.buchen(a.id, 'aus', n, letztePerson, 'Waggon nachgefüllt', { neuLaden: false });
-  }
-  if (store.cloud) await store.laden();
-  render();
+// Lager: eingetragene Mengen vom Lager in den Waggon buchen
+const bringenEintraege = () => [...document.querySelectorAll('[data-bringen-menge]')]
+  .map((f) => [findArtikel(f.dataset.bringenMenge), round(Math.max(0, Number(f.value) || 0))])
+  .filter(([a, n]) => a && n > 0);
+function bringenKnopf() {
+  const eintraege = bringenEintraege();
+  const stueck = round(eintraege.reduce((sum, [, n]) => sum + n, 0));
+  const btn = $('#btnBringen');
+  btn.disabled = !eintraege.length || eintraege.some(([a, n]) => n > a.bestand);
+  btn.textContent = eintraege.length ? `→ ${fmt(stueck)} Stück in den Waggon buchen` : '→ In den Waggon buchen';
 }
-$('#artikelListe').addEventListener('click', async (e) => {
-  const b = e.target.closest('[data-bringen]');
-  if (!b) return;
-  b.disabled = true;
-  const a = findArtikel(b.dataset.bringen);
-  const n = Math.min(nachfuellen(a), a.bestand);
+$('#artikelListe').addEventListener('input', (e) => {
+  const feld = e.target.closest('[data-bringen-menge]');
+  if (!feld) return;
+  const a = findArtikel(feld.dataset.bringenMenge);
+  if (e.isTrusted || e.detail !== 'wiederhergestellt') feld.dataset.bearbeitet = '1';
+  feld.classList.toggle('fehler', (Number(feld.value) || 0) > a.bestand);
+  bringenKnopf();
+});
+$('#btnBringen').addEventListener('click', async () => {
+  const eintraege = bringenEintraege();
+  if (!eintraege.length) return;
+  const zuViel = eintraege.filter(([a, n]) => n > a.bestand);
+  if (zuViel.length) {
+    hinweis('Mehr als im Lager', zuViel.map(([a, n]) => `${a.name}: ${fmt(n)} eingetragen, im Lager sind nur ${fmt(a.bestand)}`).join('\n'));
+    return;
+  }
+  const btn = $('#btnBringen');
+  btn.disabled = true;
   try {
-    await bringen([a.id]);
-    toast(`In den Waggon gebracht: ${mengeText(n, a.einheit)} ${a.name}${warteschlange.length ? ' · 📶 ohne Internet gespeichert' : ''}`);
+    for (const [a, n] of eintraege) {
+      await store.buchen(a.id, 'aus', n, letztePerson, 'Waggon nachgefüllt', { neuLaden: false });
+    }
+    eingabenLeeren();
+    if (store.cloud) await store.laden();
+    render();
+    const stueck = round(eintraege.reduce((sum, [, n]) => sum + n, 0));
+    toast(`✓ ${fmt(stueck)} Stück in den Waggon gebucht${warteschlange.length ? ' · 📶 ohne Internet gespeichert' : ''}`, 4000);
   } catch (err) {
     hinweis('Nicht gebucht', err.message);
     await neuLaden();
   }
 });
-$('#btnAllesGebracht').addEventListener('click', async () => {
-  const offen = state.artikel.filter((a) => nachfuellen(a) > 0 && a.bestand > 0).sort(byName);
-  const text = offen.map((a) => `${a.name}: ${mengeText(Math.min(nachfuellen(a), a.bestand), a.einheit)}`).join('\n');
-  if (!(await frage('Alles zum Waggon gebracht?', text, { ok: 'Ja, alles gebracht' }))) return;
-  try {
-    await bringen(offen.map((a) => a.id));
-    toast(`Waggon nachgefüllt${warteschlange.length ? ' · 📶 ohne Internet gespeichert' : ''}`);
-  } catch (err) {
-    hinweis('Nicht gebucht', err.message);
-    await neuLaden();
-  }
+
+// Lieferung: Buchungsdialog mit Getränkeauswahl
+$('#btnLieferung').addEventListener('click', () => {
+  if (!state.artikel.length) return;
+  const sel = $('#buchungArtikel');
+  sel.innerHTML = [...state.artikel].sort(byName).map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+  openBuchung(sel.value, 'ein', { mitAuswahl: true });
+});
+$('#buchungArtikel').addEventListener('change', (e) => {
+  buchungId = e.target.value;
+  updateBuchungInfo();
 });
 
 // Einstellungen: geänderte Werte speichern
