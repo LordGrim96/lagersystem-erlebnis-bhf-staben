@@ -49,9 +49,10 @@
     <section id="view-login" class="view">
       <form id="formLogin" class="card login">
         <h2>Anmelden</h2>
-        <p class="muted-text">Bitte mit deinem Zugang zum Getränkelager anmelden.</p>
-        <label>E-Mail
-          <input name="email" type="email" autocomplete="username" required>
+        <p class="muted-text">Bitte mit deinem Benutzernamen und Passwort anmelden.</p>
+        <label>Benutzername
+          <input name="email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off"
+            spellcheck="false" placeholder="z. B. anna" required>
         </label>
         <label>Passwort
           <input name="passwort" type="password" autocomplete="current-password" required>
@@ -164,7 +165,9 @@
         <h2>Benutzer</h2>
         <p class="muted-text"><strong>Admins</strong> sehen alles und dürfen alles ändern.
           <strong>Mitarbeiter</strong> sehen nur den Waggon und tragen ein, was verbraucht wurde.
-          Neue Benutzer legst du in Supabase an (Authentication → Users) – sie sind zuerst Mitarbeiter.</p>
+          Neue Benutzer legst du in Supabase an (Authentication → Users → Add user) mit der E-Mail
+          <strong>name@staben.lager</strong> und „Auto Confirm User“ – angemeldet wird dann nur mit <strong>name</strong>.
+          Neue Benutzer sind zuerst Mitarbeiter.</p>
         <p id="nutzerHinweis" class="error" hidden></p>
         <div class="table-wrap">
           <table class="list nutzer">

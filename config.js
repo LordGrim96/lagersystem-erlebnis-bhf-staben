@@ -7,4 +7,6 @@
 window.LAGER_CONFIG = {
   supabaseUrl: 'https://qigucziovbvhyiklzukt.supabase.co',
   supabaseAnonKey: 'sb_publishable_FdmKmTaHSTgbxfQihCMYTg_xKdovw9m',
+  // Benutzer werden in Supabase als "name@staben.lager" angelegt und melden sich nur mit "name" an
+  benutzerDomain: 'staben.lager',
 };
