@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Sicherheit: Skripte, Schriften und Bilder nur von dieser Seite; Daten nur zur eigenen Supabase-Datenbank -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
   <!-- Installierbare App: Symbol, Name und Farben für Startbildschirm und Vollbild -->
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -15,9 +18,7 @@
   <meta name="theme-color" content="#ecdcb8" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1d1611" media="(prefers-color-scheme: dark)">
   <title>Getränkelager · Erlebnisbahnhof Staben</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@400;500;700;800&family=Rye&display=swap">
+  <link rel="stylesheet" href="fonts/fonts.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>

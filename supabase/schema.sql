@@ -23,6 +23,12 @@ alter table public.artikel add column if not exists mindest_waggon numeric not n
 alter table public.artikel add column if not exists waggon numeric not null default 0 check (waggon >= 0);
 alter table public.artikel add column if not exists pro_kiste numeric not null default 0 check (pro_kiste >= 0);
 
+-- Sicherheit: Textlängen begrenzen (verhindert, dass jemand riesige Texte einschleust)
+alter table public.artikel drop constraint if exists artikel_laengen_check;
+alter table public.artikel add constraint artikel_laengen_check check (
+  length(name) <= 120 and length(sorte) <= 40 and length(ort) <= 60
+  and length(einheit) <= 20 and length(notiz) <= 200) not valid;
+
 create table if not exists public.buchungen (
   id              uuid primary key default gen_random_uuid(),
   artikel_id      uuid references public.artikel(id) on delete set null,
@@ -147,7 +153,7 @@ begin
 
   insert into public.buchungen (artikel_id, artikel_name, typ, menge, bestand_danach, waggon_danach, person, notiz, benutzer)
   values (a.id, a.name, p_typ, p_menge, a.bestand, a.waggon,
-          coalesce(trim(p_person), ''), coalesce(trim(p_notiz), ''), auth.uid())
+          left(coalesce(trim(p_person), ''), 60), left(coalesce(trim(p_notiz), ''), 200), auth.uid())
   returning * into b;
 
   insert into public.aktivitaet (user_id, zuletzt) values (auth.uid(), now())
