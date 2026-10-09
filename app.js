@@ -81,6 +81,29 @@ const GETRAENKELISTE = [
   ['Aperol', 'Spirituosen', 'Flasche'],
 ];
 
+// ---------- Sicherungsdateien prüfen ----------
+// Eine (evtl. manipulierte) Sicherung darf nur saubere Werte enthalten: IDs aus harmlosen Zeichen,
+// Zahlen als Zahlen, Texte als Texte mit begrenzter Länge. Alles andere wird verworfen.
+const SICHERE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const text = (v, max) => String(v ?? '').slice(0, max);
+const zahlOderNull = (v) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : 0);
+function datenBereinigen(data) {
+  if (!data || !Array.isArray(data.artikel) || !Array.isArray(data.buchungen)) return null;
+  const artikel = data.artikel.filter((a) => a && SICHERE_ID.test(String(a.id))).map((a) => ({
+    id: String(a.id), name: text(a.name, 120), sorte: text(a.sorte, 40), einheit: text(a.einheit || 'Flasche', 20),
+    notiz: text(a.notiz, 200), angelegt: text(a.angelegt, 40),
+    bestand: zahlOderNull(a.bestand), waggon: zahlOderNull(a.waggon),
+    mindest: zahlOderNull(a.mindest), mindestWaggon: zahlOderNull(a.mindestWaggon), proKiste: zahlOderNull(a.proKiste),
+  }));
+  const buchungen = data.buchungen.filter((b) => b && SICHERE_ID.test(String(b.id)) && WIRKUNG[b.typ]).map((b) => ({
+    id: String(b.id), artikelId: SICHERE_ID.test(String(b.artikelId)) ? String(b.artikelId) : null,
+    artikelName: text(b.artikelName, 120), typ: b.typ, menge: zahlOderNull(b.menge),
+    bestandDanach: zahlOderNull(b.bestandDanach), waggonDanach: b.waggonDanach == null ? null : zahlOderNull(b.waggonDanach),
+    person: text(b.person, 60), notiz: text(b.notiz, 200), datum: text(b.datum, 40),
+  }));
+  return { ...(data.demoVersion ? { demoVersion: data.demoVersion } : {}), artikel, buchungen };
+}
+
 // ---------- Speicher: lokal (Browser) ----------
 const STORAGE_KEY = 'lager-bhf-staben-v1';
 
@@ -88,8 +111,8 @@ const localStore = {
   cloud: false,
   async laden() {
     try {
-      const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      if (data && Array.isArray(data.artikel) && Array.isArray(data.buchungen)) {
+      const data = datenBereinigen(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'));
+      if (data) {
         // Daten älterer Versionen ergänzen (Artikelname in Buchungen, Waggon-Bestand)
         data.artikel.forEach((a) => {
           a.waggon ??= 0;
@@ -1030,8 +1053,8 @@ $('#importFile').addEventListener('change', async (e) => {
   if (!file) return;
   let data;
   try {
-    data = JSON.parse(await file.text());
-    if (!Array.isArray(data.artikel) || !Array.isArray(data.buchungen)) throw new Error();
+    data = datenBereinigen(JSON.parse(await file.text()));
+    if (!data) throw new Error();
   } catch {
     hinweis('Datei nicht lesbar', 'Die Datei ist keine gültige Sicherung des Getränkelagers.');
     return;
@@ -1500,6 +1523,13 @@ async function start() {
     return;
   }
 
+  // Schutz vor "Clickjacking": die echte App nicht in fremden Seiten (iframes) anzeigen
+  if (window.top !== window.self) {
+    $('#view-laden').innerHTML = '<p class="empty">Bitte das Getränkelager direkt öffnen.</p>';
+    zeigeAnsicht('laden');
+    return;
+  }
+
   store = cloudStore;
   $('#resetCard').hidden = true;
   $('#importLabel').textContent = 'Sicherung übernehmen';
@@ -1507,7 +1537,8 @@ async function start() {
     + 'Hier kannst du zusätzlich eine Sicherung herunterladen oder Getränke aus einer Sicherung (z. B. aus dem lokalen Modus) übernehmen.';
   zeigeAnsicht('laden');
   try {
-    await ladeSkript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js');
+    // Feste, geprüfte Version aus dem eigenen Projekt (kein fremder Server)
+    await ladeSkript('vendor/supabase-2.117.3.js');
   } catch {
     $('#view-laden').innerHTML = '<p class="empty">Die Datenbank-Bibliothek konnte nicht geladen werden. Bitte Internetverbindung prüfen und neu laden.</p>';
     return;

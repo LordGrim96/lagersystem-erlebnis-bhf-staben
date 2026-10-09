@@ -70,6 +70,12 @@ Bestände werden übernommen (der alte Buchungsverlauf nicht).
 - Ohne Anmeldung ist kein Lesen oder Schreiben möglich (Row Level Security).
 - Der Bestand ändert sich nur über Buchungen; Buchungen können nicht nachträglich geändert
   oder gelöscht werden – der Verlauf bleibt lückenlos.
+- Mitarbeiter dürfen nur „verbraucht“ buchen – das prüft die Datenbank selbst, nicht nur die App.
+- Die App lädt nichts von fremden Servern (Supabase-Bibliothek in `vendor/`, Schriften in `fonts/`)
+  und erlaubt per *Content-Security-Policy* nur eigene Skripte und Verbindungen zu Supabase.
+- Sicherungsdateien werden beim Einlesen geprüft; Texte sind in der Datenbank längenbegrenzt.
+- Empfohlen: in Supabase *Allow new users to sign up* aus, Mindest-Passwortlänge erhöhen,
+  **Advisors → Security Advisor** prüfen; für GitHub- und Supabase-Konto **2-Faktor-Anmeldung** einschalten.
 - Der `anon`-Schlüssel in `config.js` ist zur Veröffentlichung gedacht; geheim bleiben müssen
   nur das Datenbank-Passwort und der `service_role`-Schlüssel (niemals in dieses Repo!).
 
@@ -100,6 +106,7 @@ bei jedem Push auf `main`.
 | `style.css` | Gestaltung (inkl. Handy-Ansicht und Dark Mode) |
 | `app.js` | Logik, lokale Speicherung bzw. Datenbank-Anbindung, Export/Import |
 | `config.js` | Zugangsdaten zur Datenbank (leer = lokaler Modus) |
+| `vendor/`, `fonts/` | Supabase-Bibliothek und Schriften (Rye, Bitter) – lokal statt von fremden Servern |
 | `sw.js` | Speichert die App-Dateien fürs Arbeiten ohne Internet |
 | `manifest.webmanifest`, `icons/` | App-Name, Farben und App-Symbole für die Installation |
 | `supabase/schema.sql` | Tabellen, Zugriffsregeln und Buchungsfunktion für Supabase |
